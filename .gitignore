@@ -1,0 +1,54 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+
+# ─── Virtual envs ─────────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Test / coverage ──────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# ─── IDE / OS ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── ADAPT runtime artefacts ─────────────────────────────────────────────────
+outputs/adapted_models/
+
+
+# Datasets and models the user drops in
+inputs/source/
+inputs/target/
+inputs/models/
+!inputs/feature_schema.json
+
+# Reference datasets (large, do not commit)
+datasets/
+model/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log

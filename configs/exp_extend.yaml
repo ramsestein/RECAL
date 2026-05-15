@@ -1,0 +1,176 @@
+# configs/exp_extend.yaml
+#
+# Configuraciones para los experimentos de extensión del framework
+# domain_transfer (exp_extend).
+#
+# Cada configuración especifica qué aligner usar, qué features seleccionar,
+# qué N usar para enmascarar, y si se aplica recalibración estratificada.
+#
+# Taxonomía de drift (de results/v/v_drift_decomposition.csv):
+#   STABLE (45), CONCEPT_RELATIONAL (37), NONLINEAR_DRIFT (10),
+#   PARTIAL_RECOVERY (7), LINEAR_RECOVERABLE (4), INSUFFICIENT_CLINIC_DATA (4)
+#
+# Referencia (baseline): PCA-CORAL + N=4 (elbow honesto sin y_t) = Exp V base.
+# Objetivo: ¿Alguna extensión mejora AUROC o calibración de forma consistente?
+
+experiment_id: exp_extend
+
+configs:
+  # ── CONFIG 1: Baseline de referencia ──────────────────────────────────────
+  # PCA-CORAL estándar + N=4 (honest elbow).
+  # Reproduce el resultado principal del REPORT.md.
+  - name: "C1_baseline_pca_coral_N4"
+    description: "Baseline: PCA-CORAL N=4 (elbow sin y_t)"
+    aligner: "PCACoralAligner"
+    aligner_params:
+      k: 5
+      reg_pca: 1.0e-6
+      random_state: 42
+    n_mask: 4
+    feature_selection: "combined_score" # L_base + SHAP + meta_drift
+    calibration: null # sin recalibración post-hoc
+    woe_encoding: null
+    note: "Reproduce Exp V principal del REPORT.md."
+
+  # ── CONFIG 2: QuantileTransform solo sobre NONLINEAR_DRIFT ─────────────────
+  # Corrige shape de distribución marginal en las 10 features con drift
+  # no lineal, sin tocar las demás.
+  - name: "C2_quantile_nonlinear_only"
+    description: "QuantileTransformAligner selective sobre NONLINEAR_DRIFT (10 features)"
+    aligner: "SelectiveAligner"
+    aligner_params:
+      base_aligner: "QuantileTransformAligner"
+      base_params:
+        output_distribution: "uniform"
+        n_quantiles: null # min(1000, n_source)
+      feature_subset: "NONLINEAR_DRIFT" # 10 features
+    n_mask: 4
+    feature_selection: "combined_score"
+    calibration: null
+    woe_encoding: null
+    note: "Hipótesis: corrección marginal de NONLINEAR_DRIFT mejora covariate alignment."
+
+  # ── CONFIG 3: QuantileTransform sobre NONLINEAR_DRIFT + PARTIAL_RECOVERY ──
+  # Amplía la corrección de shape a las 7 features con recuperación parcial.
+  - name: "C3_quantile_nonlinear_partial"
+    description: "QuantileTransformAligner sobre NONLINEAR_DRIFT+PARTIAL_RECOVERY (17 features)"
+    aligner: "SelectiveAligner"
+    aligner_params:
+      base_aligner: "QuantileTransformAligner"
+      base_params:
+        output_distribution: "uniform"
+      feature_subset: "NONLINEAR_DRIFT+PARTIAL_RECOVERY" # 17 features
+    n_mask: 4
+    feature_selection: "combined_score"
+    calibration: null
+    woe_encoding: null
+    note: "Extensión de C2 a PARTIAL_RECOVERY."
+
+  # ── CONFIG 4: WOE encoding sobre STABLE + LINEAR_RECOVERABLE ──────────────
+  # Codifica las 49 features con relación estable (STABLE=45 + LINEAR=4) en
+  # la escala log-odds del source.  Requiere y_source (siempre disponible).
+  - name: "C4_woe_stable_linear"
+    description: "WOEEncoder sobre STABLE+LINEAR_RECOVERABLE (49 features) + PCA-CORAL"
+    aligner: "PCACoralAligner"
+    aligner_params:
+      k: 5
+      reg_pca: 1.0e-6
+      random_state: 42
+    n_mask: 4
+    feature_selection: "combined_score"
+    calibration: null
+    woe_encoding:
+      enabled: true
+      feature_subset: "STABLE+LINEAR_RECOVERABLE" # 49 features
+      n_bins: 10
+      smoothing: 0.5
+    note: >
+      Codifica features con relación estable a escala log-odds de source.
+      Control negativo: aplicar WoE a CONCEPT_RELATIONAL empeora (esperado).
+
+  # ── CONFIG 5: WOE control negativo sobre CONCEPT_RELATIONAL ───────────────
+  # Esperamos que aplicar WoE sobre features con concept shift EMPEORE.
+  # Si es así, valida que WoE encoding solo beneficia en features estables.
+  - name: "C5_woe_concept_relational_control"
+    description: "Control negativo: WOEEncoder sobre CONCEPT_RELATIONAL (37 features)"
+    aligner: "PCACoralAligner"
+    aligner_params:
+      k: 5
+      reg_pca: 1.0e-6
+      random_state: 42
+    n_mask: 4
+    feature_selection: "combined_score"
+    calibration: null
+    woe_encoding:
+      enabled: true
+      feature_subset: "CONCEPT_RELATIONAL" # 37 features
+      n_bins: 10
+      smoothing: 0.5
+    note: >
+      Control negativo: WoE en features con concept shift debe empeorar.
+      Si mejora, el modelo es robusto a la especificación errada.
+
+  # ── CONFIG 7: Extend-full (WOE+QT+PCA-CORAL) ─────────────────────────────
+  # Pipeline completo: WOE(STABLE+LINEAR_RECOVERABLE) como pre-transform de
+  # la representación de features estables, seguido de QT(NONLINEAR_DRIFT)
+  # para corregir shape no lineal, y finalmente PCA-CORAL para alinear la
+  # estructura de covarianza residual.
+  - name: "C7_extend_full"
+    description: "WOE(STABLE+LINEAR) → QT(NONLINEAR_DRIFT) → N=4 → PCA-CORAL k=5"
+    aligner: "PCACoralAligner"
+    aligner_params:
+      k: 5
+      reg_pca: 1.0e-6
+      random_state: 42
+    n_mask: 4
+    ext_full: true
+    feature_selection: "combined_score"
+    calibration: null
+    woe_encoding:
+      enabled: true
+      feature_subset: "STABLE+LINEAR_RECOVERABLE"
+      n_bins: 10
+      smoothing: 0.5
+    qt_pretransform:
+      enabled: true
+      feature_subset: "NONLINEAR_DRIFT"
+      base_params:
+        output_distribution: "uniform"
+    note: >
+      Config integrada: combina WOE (features estables) + QT (drift no lineal)
+      como pre-pasos antes de PCA-CORAL.  Sin recalibración.
+
+  # ── CONFIG 6: Recalibración estratificada (Platt por terciles de score) ───
+  # Sobre el resultado de C1, aplica StratifiedPlattRecalibrator con
+  # estratificación por terciles del score predicho.
+  # NOTA: requiere y_t → solo válido como diagnóstico post-hoc.
+  - name: "C6_stratified_platt_recal"
+    description: "C1 + StratifiedPlattRecalibrator (terciles de score)"
+    aligner: "PCACoralAligner"
+    aligner_params:
+      k: 5
+      reg_pca: 1.0e-6
+      random_state: 42
+    n_mask: 4
+    feature_selection: "combined_score"
+    calibration:
+      enabled: true
+      strategy: "score_terciles"
+      n_strata: 3
+      min_stratum_size: 15
+    woe_encoding: null
+    note: >
+      EXPLORATORIO: recalibración estratificada por terciles del score.
+      Requiere y_t → no es operacional en hospital nuevo.
+      Objetivo: ¿reduce la heterogeneidad de calibración por estrato?
+
+# ── Parámetros globales ──────────────────────────────────────────────────────
+global_params:
+  random_state: 42
+  bootstrap_n: 1000 # repeticiones bootstrap para CIs de AUROC
+  bootstrap_stratified: true # estratificado por label (recomendado)
+  n_mask_sweep: [0, 1, 2, 3, 4, 6, 8] # sweep N para curvas AUROC(N)
+  delong_alpha: 0.05 # nivel para test DeLong vs baseline
+  report_output: "reports/exp_extend/"
+  save_aligned_matrix: false # si true, guarda X_aligned como npy
+  verbose: true

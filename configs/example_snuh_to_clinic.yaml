@@ -1,0 +1,51 @@
+# Ejemplo: SNUH (source) → Clínic (target) con modelo XGBoost externo
+# Reproduce el caso de validación del paper original.
+
+model:
+  path: model/aki_external.json # modelo entregado por el colaborador
+  type: xgboost # opcional (se detecta por extensión)
+  # custom_loader: path/to/loader.py   # solo para BYOM
+
+source:
+  path: datasets/SNUH_AKI(SNUH_AKI).csv
+  outcome_col: label # nombre real de la columna outcome
+  schema: inputs/feature_schema.json
+
+target:
+  path: datasets/Clínic_AKI.csv
+  outcome_col: label
+  # Correcciones de unidades (Clínic registra en distintas unidades que SNUH):
+  #   postop_Hb, postop_Albumin : g/L → g/dL  (div10)
+  #   postop_BEecf              : signed → absoluto (abs)
+  #   preop_Ca                  : mEq/L → mg/dL (mul2)
+  unit_corrections:
+    postop_Hb_avg: div10
+    postop_Hb_intercept: div10
+    postop_Albumin_avg: div10
+    postop_Albumin_intercept: div10
+    postop_BEecf_avg: abs
+    postop_BEecf_intercept: abs
+    preop_Ca: mul2
+
+adapt:
+  pca_k: 5 # componentes PCA-CORAL
+  max_n_sweep: 30 # tope de N para el sweep automático
+  apply_qt: true # quantile transform (suele ayudar poco)
+  max_missing_rate: 0.5 # filtra filas target con >50% NaN
+  # Ruta de cache para la descomposición de drift por feature (drift_type, SHAP, L_base).
+  # Si el archivo existe se reutiliza; si no, se computa on-the-fly (~2-3 min) y se guarda.
+  # Para forzar recomputo, borra el archivo. Para deshabilitar drift por completo, comenta esta línea.
+  drift_csv: outputs/cache/drift_decomposition.csv
+
+overfitting_check:
+  enabled: true
+  method: kfold # 'kfold' | 'none'
+  n_splits: 5
+  random_state: 42
+
+output:
+  report: outputs/reports/snuh_to_clinic.html
+  adapted_model: outputs/adapted_models/snuh_to_clinic.joblib
+  metrics_json: outputs/reports/snuh_to_clinic.metrics.json
+  source_name: "SNUH"
+  target_name: "Clínic"
