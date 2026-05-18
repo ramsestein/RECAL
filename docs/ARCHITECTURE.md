@@ -58,7 +58,7 @@ flowchart LR
         D["Platt scaling with L2  (C = calibration_C)\nBrier decomposition feedback\n───────────────────────────\nparams learned from target labels only"]
     end
 
-    CALIB --> E[calibrated_probability\n∈ (0, 1)]
+    CALIB --> E["calibrated_probability (0..1)"]
 
     style MODEL fill:#d9d9d9,stroke:#888,stroke-dasharray:4 4
 ```
