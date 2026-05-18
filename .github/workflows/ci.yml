@@ -30,7 +30,9 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Lint with ruff
-        run: ruff check .
+        run: |
+          echo "ruff $(ruff --version)"
+          ruff check . --output-format=github
 
       - name: Run tests
         run: pytest -v -m "not slow"
