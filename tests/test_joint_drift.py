@@ -157,14 +157,14 @@ class TestJointDriftReport:
         X = _make_independent(500, p=4)
         features = ["a", "b", "c", "d"]
         df = joint_drift_report(X, X, features)
-        assert list(df.columns) == ["feature", "vif_source", "vif_target", "delta_vif", "flag"]
+        assert list(df.columns) == ["feature", "vif_source", "flag"]
         assert (df["flag"] == "OK").all(), f"Expected all OK, got: {df['flag'].tolist()}"
 
     def test_shifted_covariance_triggers_watch_or_severe(self):
-        """Source: independent; target: highly correlated → ΔVIF should trigger flags."""
+        """Source: highly correlated → VIF_source should trigger flags."""
         rng = np.random.default_rng(99)
-        X_src = rng.standard_normal((500, 3))
-        X_tgt = _make_correlated(300, corr=0.97, rng=rng)
+        X_src = _make_correlated(500, corr=0.97, rng=rng)  # high VIF in source
+        X_tgt = rng.standard_normal((300, 3))  # target not used for VIF
         features = ["f1", "f2", "f3"]
         df = joint_drift_report(X_src, X_tgt, features, delta_vif_warn=2.0, delta_vif_severe=5.0)
         flagged = (df["flag"] != "OK").any()
@@ -194,17 +194,16 @@ class TestJointDriftReport:
         assert len(df) == p
 
     def test_severe_flag_when_vif_delta_large(self):
-        """Construct scenario where ΔVIF > 5 for at least one feature."""
+        """Source near-perfect collinearity → VIF_source >> threshold → SEVERE."""
         rng = np.random.default_rng(11)
-        # Source: independent (VIF ≈ 1)
-        X_src = rng.standard_normal((1000, 3))
-        # Target: near-perfect collinearity between features 0 and 1
-        base = rng.standard_normal(200)
-        X_tgt = np.column_stack([
+        # Source: near-perfect collinearity between features 0 and 1 → VIF >> 10
+        base = rng.standard_normal(1000)
+        X_src = np.column_stack([
             base,
-            base + rng.standard_normal(200) * 0.01,
-            rng.standard_normal(200),
+            base + rng.standard_normal(1000) * 0.01,
+            rng.standard_normal(1000),
         ])
+        X_tgt = rng.standard_normal((200, 3))  # target not used for VIF
         features = ["a", "b", "c"]
         df = joint_drift_report(X_src, X_tgt, features, delta_vif_warn=2.0, delta_vif_severe=5.0)
         assert (df["flag"] == "SEVERE").any(), (
