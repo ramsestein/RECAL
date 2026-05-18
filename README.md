@@ -14,12 +14,54 @@ you whether the wrapper is enough or you need to retrain.
 
 ## What problem this solves
 
-A collaborator hands you a model trained at hospital A.  You need to validate
-and deploy it at hospital B, which has different covariate distributions,
-prevalence, and missingness patterns.  ADAPT adds alignment and calibration
-layers around the frozen model — never touching its weights — and delivers a
-quantified verdict: recoverable drift (wrapper sufficient) or structural drift
-(retrain).
+A collaborator shares a model developed at hospital A. The model performs well
+in its original population, but when deployed at hospital B it fails: covariate
+distributions shift, prevalence changes, monitoring practices differ, and
+missingness patterns no longer match the training environment.
+
+The practical problem is usually twofold:
+
+1. **You do not have enough local data to properly retrain the model.**  
+   You may have enough data to audit and evaluate performance degradation, but
+   not enough to develop and validate a fully new model with confidence.
+
+2. **The original model collapses in your population.**  
+   In many real-world settings, naïvely deploying the external model is simply
+   unsafe. If large-scale local training data were available, it would often be
+   preferable to train a local model directly rather than attempting marginal
+   fine-tuning of the imported one.
+
+ADAPT is designed specifically for this scenario.
+
+Instead of modifying the original model weights, ADAPT places an auditable and
+interpretable wrapper around the frozen model. The framework first performs a
+structured data audit to identify *why* the model fails in the target
+population: which variables drift, whether the drift is clinically meaningful
+or merely acquisition-related, and which differences represent true population
+variation versus spurious dataset effects.
+
+Based on this audit, ADAPT applies controlled transformations around the model
+(input alignment, feature harmonization, calibration, and distribution-aware
+corrections) to determine whether the observed degradation can be recovered
+without retraining.
+
+Importantly, the objective is **not** to erase all drift. Some differences
+between populations are real and should remain. The goal is to isolate and
+correct the *recoverable* component of the drift — the part caused by
+measurement practices, missingness mechanisms, preprocessing mismatches, or
+other non-physiological biases — while preserving genuine clinical differences
+between populations.
+
+The final outcome is not just a corrected prediction pipeline, but a quantified
+decision:
+
+- **Recoverable drift:** the wrapper successfully restores acceptable
+  performance, suggesting that the external model remains transferable after
+  alignment.
+
+- **Structural drift:** performance cannot be recovered without substantial
+  adaptation, indicating that the target population is fundamentally different
+  and that local retraining or redesign is necessary.
 
 ---
 
