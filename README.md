@@ -196,7 +196,8 @@ recal_cli/            Public CLI package
   └── run.py                  End-to-end orchestrator
 
 recal_core/           Internals (profiler, designer, pipeline, reporter)
-recal/                Alignment algorithms (PCA-CORAL, QT, WOE, calibration)
+recal/                Public library: alignment, calibration, drift, data loaders,
+                      feature selection, model wrappers, CLI entry point
 
 configs/              Your YAML run configurations
 inputs/               Your models, datasets and feature schema
