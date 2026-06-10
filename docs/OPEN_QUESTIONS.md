@@ -46,24 +46,38 @@ X_t_aligned = self._fitted_aligner.transform(X_t_corr, nan_mask=nan_mask_corr)
 
 ---
 
-## OQ-3: Computed vs pre-computed L_base (CSV)
+## OQ-3: Computed vs pre-computed L_base — a methodological divergence
 
 **File:** `recal_core/profiler/feature_profiler.py::_compute_lbase_scores()`  
-**Status:** Semantic divergence
+**Status:** **Methodological divergence** (not a bug — two different quantities)
 
 **Description:**  
-`results/v/v_drift_decomposition.csv` defines `L_base` as the AUROC of a
-univariate XGBoost predictor trained on source and evaluated on source
-(predictive capacity of the feature). RECAL's `_compute_lbase_scores()` uses
-logistic LASSO, which measures linear correlation with the outcome.
+There are two valid ways to estimate the baseline predictive capacity of a
+feature, and RECAL currently mixes them without always making the distinction
+explicit to the user.
 
-For the production pipeline it is recommended to use `lbase_dict` with the CSV values.
-The LASSO implementation is a fallback when no CSV is available.
+| Variant | Implementation | What it measures |
+|---|---|---|
+| **Reference (CSV)** | `results/v/v_drift_decomposition.csv` — computed offline with a univariate XGBoost trained on source and evaluated on source. | Non-linear predictive capacity (AUROC). |
+| **Fallback (code)** | `_compute_lbase_scores()` — logistic LASSO on source. | Linear correlation with the outcome. |
+
+These are **different quantities**. The CSV values were used to produce the
+published SNUH→Clínic benchmark numbers. When the CSV is absent, the LASSO
+fallback is silently substituted. Any manuscript reporting benchmark results must
+state which variant was used.
+
+The opaque path `results/v/v_drift_decomposition.csv` is not shipped with the
+repository; it is an offline artefact. For reproducibility, the CSV should be
+renamed to something descriptive (e.g. `feature_baseline_scores.csv`) and
+accompanied by a provenance note.
 
 **Plan v0.3:**  
-- Rename `lbase_score` to `lbase_score_approx` in the fallback.
-- Document the difference in the docstring.
-- Add flag `lbase_method: Literal["xgboost_auroc", "lasso_approx"]` to `FeatureProfile`.
+- Rename the fallback field to `lbase_score_approx` to signal it is not identical
+to the CSV reference.
+- Add an explicit `lbase_method: Literal["xgboost_auroc", "lasso_approx"]` flag
+so callers know which quantity they are looking at.
+- Move the pre-computed CSV to a documented location (e.g.
+`inputs/feature_baselines.csv`) with a README explaining its provenance.
 
 ---
 

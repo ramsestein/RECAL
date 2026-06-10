@@ -46,9 +46,9 @@ constraint and the decision artefact**:
 
 2. **Decision artefact.** ADAPT is a collection of ~30 algorithms; it does not
    tell you *whether* to deploy the adapted model. RECAL computes an **honest
-   optimism gap** (cross-validated ceiling) and a **recoverable/irreducible gap**
-   decomposition, producing a verifiable verdict: *deploy the wrapper* or
-   *retrain*.
+   optimism gap** (in-sample vs. cross-validated out-of-fold) and a
+   **recoverable/irreducible gap decomposition** (against a target-trained oracle
+   ceiling), producing a verifiable verdict: *deploy the wrapper* or *retrain*.
 
 In short: RECAL is not a replacement for domain-adaptation algorithms; it is a
 **wrapper and audit layer** that uses some of the same algorithmic building

@@ -57,6 +57,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   cross-validation, drift attribution, and counterfactual sweep.
 - **Alignment algorithms** (`recal/align/`): PCA-CORAL, Quantile Transform,
   WOE encoder, selective alignment, AdaBN, Optimal Transport.
+  *Note: AdaBN and Optimal Transport are present in the codebase but are not
+  exposed in the documented Designer workflow or the default CLI pipeline.*
 - **Calibration** (`recal/calibration/`): Stratified Platt recalibrator with
   isotonic / Platt LOO selection.
 - **Validation tests** (`recal_core/tests/test_validation_snuh_clinic.py`):
