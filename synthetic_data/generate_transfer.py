@@ -102,11 +102,10 @@ target = (
     + 0.05 * rng.randn(n)
 ).astype(np.float32)
 
-# ── 7. Apply non-linear warp: sin(target^log(target)) * 42 ──────────────────
-# Protect against negative or zero values before log
-shifted = target - target.min() + 1.0  # ensure > 0
-new_target = np.sin(shifted ** np.log(shifted)) * 42.0
-cols["target"] = new_target.astype(np.float32)
+# ── 7. Binarise target: sigmoid + threshold 0.5 ─────────────────────────────
+target_prob = 1.0 / (1.0 + np.exp(-target))
+target_binary = (target_prob >= 0.5).astype(int)
+cols["target"] = target_binary
 
 # ── Save ─────────────────────────────────────────────────────────────────────
 df = pd.DataFrame(cols)
@@ -115,5 +114,4 @@ df.to_csv(out_path, index=False)
 
 print(f"Saved: {out_path}")
 print(f"Shape: {df.shape}")
-print(f"Target range: [{cols['target'].min():.3f}, {cols['target'].max():.3f}]")
-print(f"Target std:   {cols['target'].std():.3f}")
+print(f"Target prevalence: {target_binary.mean():.3f} ({target_binary.sum()}/{len(target_binary)})")

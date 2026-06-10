@@ -85,7 +85,11 @@ target = (
     + 0.05 * rng.randn(n_samples)
 )
 
-cols["target"] = target.astype(np.float32)
+# Normalise to [0,1] via sigmoid, then threshold at 0.5 for binary label
+target_prob = 1.0 / (1.0 + np.exp(-target))
+target_binary = (target_prob >= 0.5).astype(int)
+
+cols["target"] = target_binary
 
 # ── Save ─────────────────────────────────────────────────────────────────────
 df = pd.DataFrame(cols)
@@ -94,4 +98,5 @@ df.to_csv(out_path, index=False)
 
 print(f"Saved: {out_path}")
 print(f"Shape: {df.shape}")
+print(f"Target prevalence: {target_binary.mean():.3f} ({target_binary.sum()}/{len(target_binary)})")
 print(f"Columns: {list(df.columns)}")
