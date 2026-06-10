@@ -36,6 +36,8 @@ sys.path.insert(0, str(ROOT))
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
+pytestmark = pytest.mark.slow
+
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

@@ -56,17 +56,19 @@ class TestAutoAdapterProfile:
         model = FakeModel(n_features=len(schema))
 
         # Simular CohortPair-like con solo arrays
-        class FakePair:
-            X_s = X_s
-            y_s = y_s
-            X_t = X_t
-            y_t = y_t
-            X_s_imp = X_s
-            X_t_imp = X_t
-            mu_s = X_s.mean(axis=0)
-            nan_mask_t = np.zeros_like(X_t, dtype=bool)
-            idx_corr = list(range(X_t.shape[1]))
-            schema_list = schema
+        from types import SimpleNamespace
+        fake_pair = SimpleNamespace(
+            X_s=X_s,
+            y_s=y_s,
+            X_t=X_t,
+            y_t=y_t,
+            X_s_imp=X_s,
+            X_t_imp=X_t,
+            mu_s=X_s.mean(axis=0),
+            nan_mask_t=np.zeros_like(X_t, dtype=bool),
+            idx_corr=list(range(X_t.shape[1])),
+            schema_list=schema,
+        )
 
         aa = AutoAdapter(model=model, schema=schema)
         profile = aa.profile_from_arrays(X_s, y_s, X_t, y_t)
