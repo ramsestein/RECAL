@@ -10,12 +10,9 @@ required) and verifies that the pipeline completes without errors.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
-import pytest
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -70,8 +67,9 @@ class TestE2ESynthetic:
 
     def test_train_xgboost_and_wrap(self, tmp_path: Path):
         """Train XGBoost on synthetic source, save/load via XGBoostWrapper."""
-        from recal.model.xgboost_wrapper import XGBoostWrapper
         import xgboost as xgb
+
+        from recal.model.xgboost_wrapper import XGBoostWrapper
 
         X_s, y_s, X_t, y_t, schema = _make_synthetic_cohorts()
         dtrain = xgb.DMatrix(X_s, label=y_s)
@@ -95,10 +93,10 @@ class TestE2ESynthetic:
 
     def test_full_recal_pipeline(self, tmp_path: Path):
         """Run the full RECAL pipeline on synthetic data."""
-        from recal.data.pairing import CohortPair
+        import xgboost as xgb
+
         from recal.model.xgboost_wrapper import XGBoostWrapper
         from recal_core.pipeline.auto_adapter import AutoAdapter
-        import xgboost as xgb
 
         X_s, y_s, X_t, y_t, schema = _make_synthetic_cohorts()
 
@@ -146,10 +144,11 @@ class TestE2ESynthetic:
 
     def test_html_report_generates(self, tmp_path: Path):
         """HTML report must generate without errors on synthetic data."""
+        import xgboost as xgb
+
         from recal.model.xgboost_wrapper import XGBoostWrapper
         from recal_core.pipeline.auto_adapter import AutoAdapter
         from recal_core.reporter.html_report import generate_html_report
-        import xgboost as xgb
 
         X_s, y_s, X_t, y_t, schema = _make_synthetic_cohorts()
         dtrain = xgb.DMatrix(X_s, label=y_s)
