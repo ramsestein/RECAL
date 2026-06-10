@@ -1,6 +1,6 @@
 # RECAL — Recalibration & Alignment Wrapper
 
-[![CI](https://github.com/ramsestein/ADAPT-Domain-Transfer-Wrapper/actions/workflows/ci.yml/badge.svg)](https://github.com/ramsestein/ADAPT-Domain-Transfer-Wrapper/actions/workflows/ci.yml)
+[![CI](https://github.com/ramsestein/RECAL/actions/workflows/ci.yml/badge.svg)](https://github.com/ramsestein/RECAL/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](pyproject.toml)
 
@@ -99,7 +99,7 @@ inference-time diagrams see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```bash
 # 1. Install from GitHub (no clone needed)
-pip install git+https://github.com/ramsestein/ADAPT-Domain-Transfer-Wrapper.git
+pip install git+https://github.com/ramsestein/RECAL.git
 
 # Or clone and install in editable mode for development
 pip install -e ".[dev]"
