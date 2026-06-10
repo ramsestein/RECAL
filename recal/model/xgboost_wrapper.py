@@ -2,9 +2,8 @@
 ===============================
 XGBoost model wrapper with schema-aware loading.
 
-If ``model_path`` is provided, loads the booster from JSON/UBJ/BIN.
-If omitted, trains a tiny dummy booster so that ``predict_proba`` is always
-available (useful for CI / smoke tests).
+Loads a pre-trained booster from JSON/UBJ/BIN and exposes ``predict_proba``
+with the expected schema.
 """
 from __future__ import annotations
 
@@ -22,16 +21,12 @@ class XGBoostWrapper:
     def __init__(
         self,
         schema: list[str],
-        model_path: str | Path | None = None,
+        model_path: str | Path,
     ) -> None:
         self.schema = list(schema)
         self.n_features_in_ = len(schema)
         self._booster = None
-
-        if model_path is not None:
-            self._load_from_path(Path(model_path))
-        else:
-            self._build_dummy_booster()
+        self._load_from_path(Path(model_path))
 
     # ── Loading ─────────────────────────────────────────────────────────────
 
@@ -43,25 +38,6 @@ class XGBoostWrapper:
         self._booster = xgb.Booster()
         self._booster.load_model(str(path))
         logger.info("XGBoostWrapper loaded model from %s", path)
-
-    def _build_dummy_booster(self) -> None:
-        """Train a tiny booster on random data so predict_proba works."""
-        import xgboost as xgb
-
-        rng = np.random.RandomState(42)
-        n = max(100, self.n_features_in_ * 2)
-        X = rng.randn(n, self.n_features_in_).astype(np.float32)
-        y = (X[:, 0] + X[:, 1] > 0).astype(int)
-        dtrain = xgb.DMatrix(X, label=y)
-        params = {
-            "objective": "binary:logistic",
-            "max_depth": 2,
-            "eta": 0.3,
-            "eval_metric": "logloss",
-            "seed": 42,
-        }
-        self._booster = xgb.train(params, dtrain, num_boost_round=5)
-        logger.debug("XGBoostWrapper built dummy booster (n_features=%d)", self.n_features_in_)
 
     # ── Public API ──────────────────────────────────────────────────────────
 
