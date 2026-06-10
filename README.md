@@ -34,7 +34,26 @@ The practical problem is usually twofold:
 RECAL is designed specifically for this scenario.
 
 Instead of modifying the original model weights, RECAL places an auditable and
-interpretable wrapper around the frozen model. Unlike classical domain adaptation (e.g. the ADAPT method by Mathelin *et al.*, which retrains or fine-tunes the model), RECAL never touches the model weights. It only aligns input covariates and recalibrates output probabilities using a small labelled validation cohort from the target domain. This is external validation and recalibration, not retraining.
+interpretable wrapper around the frozen model. RECAL's alignment layer uses
+feature-based transformations (e.g. PCA-CORAL) that also appear in existing
+domain-adaptation toolboxes such as the *ADAPT* library (de Mathelin *et al.*,
+2021). The key difference is not the algorithmic family — it is the **workflow
+constraint and the decision artefact**:
+
+1. **Frozen-model constraint.** RECAL treats the model as a black box and never
+   requires the original training data. You only need a small labelled validation
+   cohort from the target domain.
+
+2. **Decision artefact.** ADAPT is a collection of ~30 algorithms; it does not
+   tell you *whether* to deploy the adapted model. RECAL computes an **honest
+   optimism gap** (cross-validated ceiling) and a **recoverable/irreducible gap**
+   decomposition, producing a verifiable verdict: *deploy the wrapper* or
+   *retrain*.
+
+In short: RECAL is not a replacement for domain-adaptation algorithms; it is a
+**wrapper and audit layer** that uses some of the same algorithmic building
+blocks but adds the missing link — a principled decision on whether the wrapper
+is sufficient.
 
 The framework first performs a
 structured data audit to identify *why* the model fails in the target
