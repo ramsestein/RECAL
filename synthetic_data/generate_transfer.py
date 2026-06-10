@@ -107,6 +107,23 @@ target_prob = 1.0 / (1.0 + np.exp(-target))
 target_binary = (target_prob >= 0.5).astype(int)
 cols["target"] = target_binary
 
+# ── 8. Extra domain shift: scale half the features by random factors ────────
+feature_names = [c for c in cols if c != "target"]
+n_features = len(feature_names)
+n_to_perturb = n_features // 2  # 25 features
+perturbed = rng.choice(feature_names, n_to_perturb, replace=False)
+for fname in perturbed:
+    scale_factor = rng.uniform(0.3, 2.5)
+    cols[fname] = (cols[fname] * scale_factor).astype(np.float32)
+print(f"Perturbed {n_to_perturb} features with random scale factors: {perturbed[:5]}...")
+
+# ── 9. Replace 5 random features with pure noise (no relation to original) ───
+feature_names = [c for c in cols if c != "target"]
+randomised = rng.choice(feature_names, 5, replace=False)
+for fname in randomised:
+    cols[fname] = rng.randn(n).astype(np.float32)
+print(f"Replaced 5 features with pure noise: {randomised}")
+
 # ── Save ─────────────────────────────────────────────────────────────────────
 df = pd.DataFrame(cols)
 out_path = data_dir / "synthetic_transfer.csv"
