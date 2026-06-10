@@ -233,7 +233,7 @@ See [docs/MODEL_FORMAT.md](docs/MODEL_FORMAT.md) for full details and examples.
 If you use RECAL in your work, please cite:
 
 ```bibtex
-@software{marrero_garcia_adapt_2026,
+@software{marrero_garcia_recal_2026,
   author  = {Marrero García, Ramses},
   title   = {RECAL — Recalibration & Alignment Wrapper},
   year    = {2026},

@@ -1,76 +1,66 @@
 # Changelog — RECAL
 
-All notable changes to the `recal_core/` package.
+All notable changes to the RECAL project.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.2.0] — 2026-06
+## [0.2.0] — 2026-06-10
+
+### Renamed / Rebranded
+- Project renamed from **ADAPT** to **RECAL** (Recalibration & Alignment Wrapper)
+  to differentiate from classical domain-adaptation methods.
+- Packages renamed: `domain_transfer` → `recal`, `adapt` → `recal_core`,
+  `adapt_cli` → `recal_cli`.
+- Output paths updated: `outputs/adapted_models/` → `outputs/recal_models/`,
+  `outputs/reports/adapt_report.html` → `outputs/reports/recal_report.html`.
 
 ### Added
+- `recal/model/xgboost_wrapper.py` — Schema-aware XGBoost loader (requires real
+  `model_path`; no hidden dummy training).
+- `recal_core/tests/test_e2e_synthetic.py` — End-to-end test that generates
+  synthetic source+target, trains a real XGBoost, and runs the full RECAL pipeline.
+- `recal_core/tests/data/` — Bundled synthetic CSVs, schema JSON and trained
+  XGBoost model for CI (no real clinical data required).
+- `docs/TESTING.md` — Test-suite overview, running instructions, data philosophy.
 
-#### Block A: Profiler
-- `recal_core/profiler/constants.py` — 18 thresholds with empirical justifications.
-- `recal_core/profiler/base.py` — Dataclasses `FeatureProfile` (17 fields) and `DriftProfile`
-  with helper methods (`features_by_quadrant`, `poisonous_features`, etc.).
-- `recal_core/profiler/quadrant.py` — `assign_quadrants(shap, lbase)` → quadrants A/B/C/D.
-- `recal_core/profiler/global_profiler.py` — `profile_global()`: MMD², Fisher exact,
-  AUROC CI bootstrap (n=500), calibration slope, ECE, CITL.
-- `recal_core/profiler/feature_profiler.py` — `profile_features()`: L_base (logistic LASSO),
-  SHAP importance, concept shift (beta3, qbh, flip), quadrant assignment, combined score.
-- `recal_core/profiler/profiler.py` — `Profiler` class combining global + feature profiles.
+### Changed
+- `recal_core/tests/test_validation_snuh_clinic.py` — Now uses synthetic data as
+  fallback when real CSVs are absent; assertions branch on `is_synthetic`.
+- `tests/test_reproduces_legacy.py` — Same fallback to synthetic data;
+  exact-number assertions only run with real data.
+- `docs/CHANGELOG.md` and `docs/OPEN_QUESTIONS.md` — Translated to English.
 
-#### Block B: Designer
-- `recal_core/designer/base.py` — `AdapterConfig` dataclass with all decision fields
-  plus `rationale: dict` with justifications.
-- `recal_core/designer/rules.py` — 5 deterministic rules:
-  - `should_mask_features()` — Activates if n_events ≥ 20.
-  - `select_mask_n()` — Elbow of second derivative on combined_scores; capped at 20%.
-  - `should_apply_quantile_transform_per_feature()` — NONLINEAR/PARTIAL + cv≥5% + var_ratio outside (0.5, 2.0).
-  - `should_apply_woe_per_feature()` — STABLE/LINEAR + n_target_events≥30 + n_source_events≥100 + SHAP≥0.005.
-  - `should_apply_pca_coral()` — Always True.
-  - `select_pca_coral_k()` — Var≥80% on source PCA; capped at sqrt(n_target).
-  - `should_recalibrate()` — |slope-1| > 0.5 AND n_events≥20.
-  - `select_calibration_method()` — Isotonic if n≥500; Platt LOO otherwise.
-- `recal_core/designer/selector.py` — `ComponentSelector` class: profile → AdapterConfig.
+### Fixed
+- `pyproject.toml` — Proper `pip install` metadata (readme, license, authors,
+  classifiers, project URLs).
+- CI badge in `README.md` now points to the new `RECAL` repository.
+- `ruff check .` passes cleanly (no unused imports, no dead code).
 
-#### Block C: AutoAdapter
-- `recal_core/pipeline/auto_adapter.py` — `AutoAdapter` class:
-  - `.profile(pair)` → DriftProfile
-  - `.design()` → AdapterConfig
-  - `.fit(pair)` → self
-  - `.predict(pair)` → np.ndarray
-  - `.auto_adapt(pair)` → np.ndarray (full pipeline with filter_target)
-  - `.profile_from_arrays()` and `._predict_from_arrays()` (test helpers)
-- `recal_core/pipeline/__init__.py`
+---
 
-#### Block D: Reporter
-- `recal_core/reporter/tables.py` — 4 Markdown table generators.
-- `recal_core/reporter/figures.py` — 4 matplotlib figures (quadrant map, calibration curve,
-  combined score bar, missing rates).
-- `recal_core/reporter/html_report.py` — `generate_html_report()`: self-contained HTML
-  with base64-embedded figures.
-- `recal_core/reporter/__init__.py`
+## [0.1.0] — 2026-06 (initial implementation)
 
-#### Block E: SNUH→Clínic Validation Test
-- `recal_core/tests/test_validation_snuh_clinic.py` — E2E regression test:
-  - `TestDataSanity` — Checks n_obs, n_events, baseline AUROC.
-  - `TestProfilerOutputs` — Checks slope>2, ≥3 distinct quadrants.
-  - `TestDesignerDecisions` — Checks 7 known deterministic decisions.
-  - `TestPipelinePerformance` (SLOW) — Checks AUROC∈[0.65, 0.75], slope∈[0.5, 1.5].
-  - `test_html_report_generates` (SLOW) — Checks HTML>5000 chars.
-
-#### Block F: Additional Tests
-- `recal_core/tests/test_profiler.py` — Unit tests for Profiler with synthetic data.
-- `recal_core/tests/test_designer_rules.py` — Unit tests for each Designer rule.
-- `recal_core/tests/test_auto_adapter.py` — Integration tests with synthetic data.
-- `recal_core/tests/test_dataset_shift_invariance.py` — Invariance (determinism, scaling, monotonicity).
-
-### Notes
-- `recal/` was not modified in any commit of this version.
-- The Designer does not use target metrics to select hyperparameters
-  (honest evaluation guaranteed).
+### Added
+- **Profiler** (`recal_core/profiler/`): global drift profile (MMD², AUROC CI,
+  calibration slope, ECE) + per-feature profiles (L_base, SHAP, concept shift,
+  quadrant assignment).
+- **Designer** (`recal_core/designer/`): deterministic rule engine that selects
+  masking, quantile transform, WOE, PCA-CORAL k, and calibration method from the
+  drift profile.
+- **AutoAdapter** (`recal_core/pipeline/auto_adapter.py`): orchestrates
+  profile → design → fit → predict in one class.
+- **Reporter** (`recal_core/reporter/`): self-contained HTML report with
+  base64-embedded figures and Markdown tables.
+- **CLI** (`recal_cli/run.py`): end-to-end orchestrator with YAML config,
+  cross-validation, drift attribution, and counterfactual sweep.
+- **Alignment algorithms** (`recal/align/`): PCA-CORAL, Quantile Transform,
+  WOE encoder, selective alignment, AdaBN, Optimal Transport.
+- **Calibration** (`recal/calibration/`): Stratified Platt recalibrator with
+  isotonic / Platt LOO selection.
+- **Validation tests** (`recal_core/tests/test_validation_snuh_clinic.py`):
+  E2E regression against SNUH→Clínic benchmark.
 
 ---
 
