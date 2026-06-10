@@ -5,9 +5,10 @@ to the 20 base columns, recomputes the engineered features (F3, FA), recomputes
 the polynomial target, and finally applies a non-linear warp:
     new_target = sin(target ** log(target)) * 42
 """
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 rng = np.random.RandomState(43)
 
@@ -80,31 +81,8 @@ for j in range(10):
 for j in range(10):
     cols[f"N{j:02d}"] = rng_orig.randn(n).astype(np.float32)
 
-# ── 6. Recompute polynomial target with transformed values ───────────────────
-x0, x1, x2 = cols["X00"], cols["X01"], cols["X02"]
-f3_0, f3_1, f3_2 = cols["F3_00"], cols["F3_01"], cols["F3_02"]
-fa_0, fa_1 = cols["FA_00"], cols["FA_01"]
-
-target = (
-    2.0 * x0
-    - 1.5 * x1
-    + 0.8 * x2
-    + 1.2 * f3_0
-    - 0.9 * f3_1
-    + 0.5 * f3_2
-    + 1.0 * fa_0
-    - 0.7 * fa_1
-    + 0.6 * (x0 ** 2)
-    - 0.4 * (x1 * x2)
-    + 0.3 * (f3_0 * f3_1)
-    + 0.2 * (fa_0 * fa_1)
-    + 0.1 * (x0 * f3_0 * fa_0)
-    + 0.05 * rng.randn(n)
-).astype(np.float32)
-
-# ── 7. Binarise target: sigmoid + threshold 0.5 ─────────────────────────────
-target_prob = 1.0 / (1.0 + np.exp(-target))
-target_binary = (target_prob >= 0.5).astype(int)
+# ── 6. Use ORIGINAL target from source (no concept shift, only covariate shift) ─
+target_binary = df_orig["target"].values.astype(int)
 cols["target"] = target_binary
 
 # ── 8. Extra domain shift: scale half the features by random factors ────────

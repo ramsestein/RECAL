@@ -1,0 +1,21 @@
+{
+  "apply_mask": "True",
+  "mask_features": "['FA_03', 'X19', 'X12', 'FA_09', 'FA_07', 'X18', 'N09', 'FA_06', 'N08', 'X14', 'X17', 'N05']",
+  "mask_n": "12",
+  "mask_selection_method": "elbow_source",
+  "apply_quantile": "False",
+  "quantile_features": "[]",
+  "quantile_output_distribution": "uniform",
+  "apply_woe": "False",
+  "woe_features": "[]",
+  "woe_n_bins": "10",
+  "apply_pca_coral": "True",
+  "pca_coral_k": "5",
+  "pca_coral_k_selection_method": "sqrt_n_target",
+  "apply_calibration": "True",
+  "calibration_method": "isotonic_loo",
+  "calibration_strata_fn": "None",
+  "rationale": "{'mask_activate': 'n_target_events=594 >= 20: mask activated', 'mask_n': 'elbow of combined score in source: N=12 (D_ponzonous=15)', 'mask_features': 'Bottom-12 por combined_score: FA_03, X19, X12, FA_09, FA_07...', 'quantile': 'QT on 0 features after filtering near-constants (CV<0.05) and moderate ratios (0.5\u20132.0)', 'woe': 'WOE on 0 STABLE/LINEAR_RECOVERABLE features with SHAP >= 0.005', 'pca_coral_activate': 'PCA-CORAL is the default robust aligner under any p/n ratio', 'pca_coral_k': 'k_cv=5 (var\u226580% in source), clipped to sqrt(n_target)=31 \u2192 k=5', 'calibration_activate': 'slope=0.06: |slope-1|=0.94 > 0.5: recalibration required', 'calibration_method': 'n_events_target=594 >= 500: isotonic regression viable'}",
+  "audit": "DesignerAuditTrail(n_decisions=9)",
+  "mask_sweep_history": "[]"
+}

@@ -12,9 +12,10 @@ Structure:
 
 Total features: 50 + target.
 """
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 rng = np.random.RandomState(42)
 n_samples = 1000

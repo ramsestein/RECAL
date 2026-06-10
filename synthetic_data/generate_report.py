@@ -11,7 +11,6 @@ from pathlib import Path
 import joblib
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import xgboost as xgb
 from sklearn.calibration import calibration_curve
@@ -307,4 +306,4 @@ The goal is to measure how well each model withstands the synthetic covariate sh
 report_path = reports_dir / "cross_domain_report.html"
 report_path.write_text(html, encoding="utf-8")
 print(f"Report saved: {report_path}")
-print(f"Open it in a browser to view the full report.")
+print("Open it in a browser to view the full report.")

@@ -12,11 +12,10 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+import xgboost as xgb
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
-    precision_score,
-    recall_score,
     roc_auc_score,
 )
 from sklearn.model_selection import train_test_split
@@ -36,8 +35,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # ── 2. Train XGBoost ───────────────────────────────────────────────────────
-import xgboost as xgb
-
 xgb_model = xgb.XGBClassifier(
     objective="binary:logistic",
     n_estimators=200,
