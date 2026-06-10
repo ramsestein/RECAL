@@ -27,7 +27,7 @@ target:
     postop_BEecf_intercept: abs
     preop_Ca: mul2
 
-adapt:
+recal_core:
   pca_k: 5 # componentes PCA-CORAL
   max_n_sweep: 30 # tope de N para el sweep automático
   apply_qt: true # quantile transform (suele ayudar poco)
@@ -45,7 +45,7 @@ overfitting_check:
 
 output:
   report: outputs/reports/snuh_to_clinic.html
-  adapted_model: outputs/adapted_models/snuh_to_clinic.joblib
+  recal_model: outputs/recal_models/snuh_to_clinic.joblib
   metrics_json: outputs/reports/snuh_to_clinic.metrics.json
   source_name: "SNUH"
   target_name: "Clínic"

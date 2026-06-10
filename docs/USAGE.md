@@ -1,7 +1,7 @@
-# ADAPT — Usage walkthrough
+# RECAL — Usage walkthrough
 
-End-to-end guide for building a domain-transfer wrapper with ADAPT.
-Assumes ADAPT is installed (`pip install -e ".[dev]"`).
+End-to-end guide for building a domain-transfer wrapper with RECAL.
+Assumes RECAL is installed (`pip install -e ".[dev]"`).
 
 ---
 
@@ -45,7 +45,7 @@ model:
   # pipeline: inputs/models/your_model_pipeline.json
   #   Path to a preprocessing pipeline JSON that transforms raw columns into
   #   the features expected by the model (e.g. PCA + low-VIF selection).
-  #   If omitted, ADAPT auto-detects any *_pipeline.json in the same folder
+  #   If omitted, RECAL auto-detects any *_pipeline.json in the same folder
   #   as the model.  Set to null to disable auto-detection.
   # custom_loader: path/to/loader.py    # only for BYOM models (see MODEL_FORMAT.md)
 
@@ -65,7 +65,7 @@ target:
   unit_corrections: {}
 
 # ── Adaptation parameters ───────────────────────────────────────────────────
-adapt:
+recal_core:
   pca_k: 5              # number of PCA components for PCA-CORAL alignment
   max_n_sweep: 30       # max features to evaluate in the mask sweep
                         # lower → faster, less overfitting risk
@@ -85,7 +85,7 @@ overfitting_check:
 # ── Output paths ────────────────────────────────────────────────────────────
 output:
   report: outputs/reports/my_run.html
-  adapted_model: outputs/adapted_models/my_run.joblib
+  recal_model: outputs/recal_models/my_run.joblib
   metrics_json: outputs/reports/my_run.metrics.json
   source_name: "Source"   # label shown in the report
   target_name: "Target"
@@ -140,16 +140,16 @@ Or pass `--skip-expensive` on the CLI (equivalent shorthand).
 
 ```bash
 # Standard run
-python -m adapt_cli.run --config configs/my_run.yaml
+python -m recal_cli.run --config configs/my_run.yaml
 
 # Skip oracle + attribution (faster iteration)
-python -m adapt_cli.run --config configs/my_run.yaml --skip-expensive
+python -m recal_cli.run --config configs/my_run.yaml --skip-expensive
 
 # Override a parameter without editing the YAML
-python -m adapt_cli.run --config configs/my_run.yaml --override adapt.pca_k=8
+python -m recal_cli.run --config configs/my_run.yaml --override recal_core.pca_k=8
 
 # Disable k-fold CV
-python -m adapt_cli.run --config configs/my_run.yaml --no-cv
+python -m recal_cli.run --config configs/my_run.yaml --no-cv
 ```
 
 Console output shows progress section by section.  Total wall time for ~100
@@ -194,7 +194,7 @@ information delta matrix is also shown.
 Three AUROC bars:
 
 1. **Raw model** — frozen model, no adaptation, on target.
-2. **Adapted model** — after full wrapper, on target.
+2. **RECAL model** — after full wrapper, on target.
 3. **Oracle** — XGBoost re-trained on target in k-fold (theoretical ceiling).
 
 From these three numbers:
@@ -232,7 +232,7 @@ statistic, CORAL recovery, alignment method applied.
 
 ## Step 5 — Using the serialised wrapper for inference
 
-After a successful run, the wrapper at `outputs/adapted_models/my_run.joblib`
+After a successful run, the wrapper at `outputs/recal_models/my_run.joblib`
 is ready for inference on **new data from the same target domain** (not a
 third, unseen domain).
 
@@ -241,7 +241,7 @@ import joblib
 import pandas as pd
 
 # Load the wrapper built in the previous run
-wrapper = joblib.load("outputs/adapted_models/my_run.joblib")
+wrapper = joblib.load("outputs/recal_models/my_run.joblib")
 
 # Load new target-domain data (same feature schema, no labels needed)
 X_new = pd.read_csv("inputs/target/new_batch.csv")[wrapper.schema]
@@ -256,7 +256,7 @@ print(proba[:5])
 - `wrapper.schema` is the list of feature names the pipeline was built on.
   New data must contain exactly those columns.
 - The wrapper is valid only for data from the **same target distribution**.
-  A deployment drift from the original target would require a new ADAPT run.
+  A deployment drift from the original target would require a new RECAL run.
 - If the model was not re-trained, predictions remain limited by the frozen
   model's discriminative ability.
 

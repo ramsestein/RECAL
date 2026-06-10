@@ -7,10 +7,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from domain_transfer.align.adabn import AdaBNAligner
-from domain_transfer.align.identity import IdentityAligner
-from domain_transfer.align.pca_coral import PCACoralAligner
-from domain_transfer.align.selective import SelectiveAligner
+from recal.align.adabn import AdaBNAligner
+from recal.align.identity import IdentityAligner
+from recal.align.pca_coral import PCACoralAligner
+from recal.align.selective import SelectiveAligner
 
 # ── IdentityAligner ───────────────────────────────────────────────────────────
 
@@ -126,14 +126,14 @@ ot_available = pytest.importorskip("ot", reason="POT not installed — skipping 
 
 class TestOTAligner:
     def test_import_and_basic_shape(self, synthetic_source, synthetic_target):
-        from domain_transfer.align.optimal_transport import OTAligner
+        from recal.align.optimal_transport import OTAligner
 
         aligner = OTAligner(reg=0.5, max_src_samples=200)
         out = aligner.fit_transform(synthetic_source, synthetic_target)
         assert out.shape == synthetic_target.shape
 
     def test_nan_mask_restored(self, synthetic_source, synthetic_target, nan_mask_target):
-        from domain_transfer.align.optimal_transport import OTAligner
+        from recal.align.optimal_transport import OTAligner
 
         aligner = OTAligner(reg=0.5, max_src_samples=200)
         aligner.fit(synthetic_source, synthetic_target)
@@ -150,7 +150,7 @@ class TestOTAligner:
         """
         from scipy.stats import wasserstein_distance
 
-        from domain_transfer.align.optimal_transport import OTAligner
+        from recal.align.optimal_transport import OTAligner
 
         rng = np.random.default_rng(0)
         p = 5
@@ -186,7 +186,7 @@ class TestWOEEncoder:
 
     def test_zero_event_bins_no_infinite_woe(self):
         """Bins con 0 eventos (positivos o negativos) no producen WoE infinito."""
-        from domain_transfer.select.woe_encoder import WOEEncoder
+        from recal.select.woe_encoder import WOEEncoder
 
         rng = np.random.default_rng(7)
         # Create a feature whose values for positive class are all in the
@@ -210,7 +210,7 @@ class TestWOEEncoder:
 
     def test_zero_negative_bins_no_infinite_woe(self):
         """Bins con 0 negativos tampoco producen WoE infinito."""
-        from domain_transfer.select.woe_encoder import WOEEncoder
+        from recal.select.woe_encoder import WOEEncoder
 
         rng = np.random.default_rng(13)
         n = 100
@@ -229,7 +229,7 @@ class TestWOEEncoder:
 
     def test_transform_output_finite(self):
         """transform() devuelve valores finitos para todos los bins."""
-        from domain_transfer.select.woe_encoder import WOEEncoder
+        from recal.select.woe_encoder import WOEEncoder
 
         X, y = self._make_data()
         enc = WOEEncoder(n_bins=10, smoothing=0.5)
@@ -239,14 +239,14 @@ class TestWOEEncoder:
 
     def test_smoothing_zero_raises(self):
         """smoothing <= 0 debe lanzar ValueError en construcción."""
-        from domain_transfer.select.woe_encoder import WOEEncoder
+        from recal.select.woe_encoder import WOEEncoder
 
         with pytest.raises(ValueError, match="smoothing"):
             WOEEncoder(smoothing=0.0)
 
     def test_output_shape(self):
         """transform() preserva el shape."""
-        from domain_transfer.select.woe_encoder import WOEEncoder
+        from recal.select.woe_encoder import WOEEncoder
 
         X, y = self._make_data(n=150, p=4)
         enc = WOEEncoder(n_bins=8, smoothing=0.5)

@@ -27,11 +27,11 @@ pytestmark = pytest.mark.slow
 
 def _load_pipeline():
     """Carga loaders, model y pair con los parámetros exactos del script x_eval.py."""
-    from domain_transfer.data.clinic import ClinicLoader
-    from domain_transfer.data.pairing import CohortPair
-    from domain_transfer.data.schema import load_schema
-    from domain_transfer.data.snuh import SNUHLoader
-    from domain_transfer.model.xgboost_wrapper import XGBoostWrapper
+    from recal.data.clinic import ClinicLoader
+    from recal.data.pairing import CohortPair
+    from recal.data.schema import load_schema
+    from recal.data.snuh import SNUHLoader
+    from recal.model.xgboost_wrapper import XGBoostWrapper
 
     schema = load_schema()
     snuh = SNUHLoader(schema=schema)
@@ -84,7 +84,7 @@ def test_filter_target_positives():
 @pytest.mark.slow
 def test_auroc_raw():
     """AUROC Clínic sin alineación ≈ 0.6293 (sin máscara)."""
-    from domain_transfer.align.identity import IdentityAligner
+    from recal.align.identity import IdentityAligner
 
     pair, model = _load_pipeline()
     X_aligned = pair.align(IdentityAligner())
@@ -101,7 +101,7 @@ def test_auroc_raw():
 @pytest.mark.slow
 def test_auroc_pca_coral_k5():
     """AUROC Clínic con PCA-CORAL k=5 ≈ 0.7051 (sin máscara)."""
-    from domain_transfer.align.pca_coral import PCACoralAligner
+    from recal.align.pca_coral import PCACoralAligner
 
     pair, model = _load_pipeline()
     X_aligned = pair.align(PCACoralAligner(k=5, shrinkage=None))  # legacy: no LW shrinkage

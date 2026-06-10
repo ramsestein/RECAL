@@ -1,23 +1,25 @@
-cff-version: 1.2.0
+cff-version: 1.0.0
 message: "If you use this software, please cite it as below."
 
-title: "ADAPT — Domain Transfer Wrapper"
+title: "RECAL — Recalibration & Alignment Wrapper"
 abstract: >
-  A Python wrapper for adapting binary predictive models across clinical
-  domains (source → target) without retraining, with an honest drift study
-  to guide the retraining decision. Supports XGBoost, scikit-learn, Keras,
-  PyTorch, and custom (BYOM) backends.
+  A Python wrapper for recalibrating and aligning frozen binary predictive
+  models across clinical domains (source → target) without retraining.
+  Unlike classical domain-adaptation methods, RECAL never modifies model
+  weights; it only aligns input covariates and recalibrates output
+  probabilities using a small labelled target validation cohort.
+  Supports XGBoost, scikit-learn, Keras, PyTorch, and custom (BYOM) backends.
 
 version: "0.2.0"
 date-released: "2026-05-18"
 license: MIT
 
 authors:
-  - family-names: "Marrero García"
+  - family-names: "Marrero Garcia"
     given-names: "Ramses"
     orcid: "" # fill in your ORCID (https://orcid.org/)
 
-repository-code: "https://github.com/your-org/xIA-ko-bcn"
+repository-code: ""
 
 keywords:
   - domain-adaptation

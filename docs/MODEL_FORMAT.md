@@ -1,8 +1,8 @@
-# ADAPT — Model format guide
+# RECAL — Model format guide
 
-ADAPT can load a frozen model from any of five backends.  The model is
+RECAL can load a frozen model from any of five backends.  The model is
 **never** retrained — it must already be trained and serialised before
-running ADAPT.
+running RECAL.
 
 ---
 
@@ -16,7 +16,7 @@ running ADAPT.
 | `.pt` `.pth` | PyTorch | `torch` | Must be a full model, not a `state_dict` |
 | `<any>` + `custom_loader:` | BYOM | `byom` | You provide a Python loader |
 
-The `type:` key is optional — ADAPT auto-detects the backend from the file
+The `type:` key is optional — RECAL auto-detects the backend from the file
 extension.  Specify it explicitly to override or when using BYOM.
 
 ---
@@ -52,7 +52,7 @@ model:
 ### NaN handling
 
 XGBoost has native NaN support — missing values are routed through learned
-default directions in each split.  ADAPT passes the feature matrix as-is
+default directions in each split.  RECAL passes the feature matrix as-is
 without imputation.
 
 ### Caveats
@@ -114,7 +114,7 @@ model:
 
 ### NaN handling
 
-Keras models error on NaN inputs.  ADAPT automatically imputes NaN values
+Keras models error on NaN inputs.  REACAL automatically imputes NaN values
 to **0** before calling the model.  This is a fallback — if your model is
 sensitive to imputation, handle missingness upstream.
 
@@ -136,7 +136,7 @@ torch.save(model, "inputs/models/my_model.pt")   # full model, not state_dict
 ```
 
 Do **not** save only the state dict (`torch.save(model.state_dict(), ...)`)
-because ADAPT cannot reconstruct the architecture without the class definition.
+because RECAL cannot reconstruct the architecture without the class definition.
 
 ### Config
 
@@ -154,7 +154,7 @@ NaN values are imputed to **0** before inference (same as Keras).
 
 - The model must expose a `.forward(x)` method that returns logits or
   probabilities for binary classification.
-- ADAPT calls `torch.sigmoid` on the output if the range is outside [0, 1].
+- RECAL calls `torch.sigmoid` on the output if the range is outside [0, 1].
 - Requires `torch >= 2.0` at runtime.
 
 ---
@@ -216,7 +216,7 @@ def load_model(path: str):
 
 ### NaN handling
 
-BYOM: ADAPT does **not** apply any automatic NaN imputation.  Your `load_model`
+BYOM: RECAL does **not** apply any automatic NaN imputation.  Your `load_model`
 return object must handle NaNs however the original model expects.
 
 ---
@@ -240,13 +240,13 @@ When in doubt, wrap the model in a sklearn-compatible class with
 
 Some externally-provided models require a fixed preprocessing step before the
 model can receive any features (e.g., cluster-wise PCA + low-VIF feature
-selection).  ADAPT supports this via a companion JSON file called a
+selection).  RECAL supports this via a companion JSON file called a
 *preprocessing pipeline*.
 
 ### Auto-detection
 
 If a file named `*_pipeline.json` exists in the **same directory** as the
-model, ADAPT detects and loads it automatically.  No config change is needed.
+model, RECAL detects and loads it automatically.  No config change is needed.
 
 ```
 inputs/models/

@@ -1,10 +1,10 @@
-# ADAPT — Domain Transfer Wrapper
+# RECAL — Recalibration & Alignment Wrapper
 
 [![CI](https://github.com/ramsestein/ADAPT-Domain-Transfer-Wrapper/actions/workflows/ci.yml/badge.svg)](https://github.com/ramsestein/ADAPT-Domain-Transfer-Wrapper/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue.svg)](pyproject.toml)
 
-**Adapt and audit predictive models across domains without retraining.**
+**Recalibrate and align frozen binary predictive models across clinical domains without retraining.**
 
 Wrap a frozen binary predictive model (XGBoost / sklearn / Keras / PyTorch / BYOM)
 so it works on a new target domain — and produce an honest report that tells
@@ -31,16 +31,18 @@ The practical problem is usually twofold:
    preferable to train a local model directly rather than attempting marginal
    fine-tuning of the imported one.
 
-ADAPT is designed specifically for this scenario.
+RECAL is designed specifically for this scenario.
 
-Instead of modifying the original model weights, ADAPT places an auditable and
-interpretable wrapper around the frozen model. The framework first performs a
+Instead of modifying the original model weights, RECAL places an auditable and
+interpretable wrapper around the frozen model. Unlike classical domain adaptation (e.g. the RECAL method by Mathelin *et al.*, which retrains or fine-tunes the model), RECAL never touches the model weights. It only aligns input covariates and recalibrates output probabilities using a small labelled validation cohort from the target domain. This is external validation and recalibration, not retraining.
+
+The framework first performs a
 structured data audit to identify *why* the model fails in the target
 population: which variables drift, whether the drift is clinically meaningful
 or merely acquisition-related, and which differences represent true population
 variation versus spurious dataset effects.
 
-Based on this audit, ADAPT applies controlled transformations around the model
+Based on this audit, RECAL applies controlled transformations around the model
 (input alignment, feature harmonization, calibration, and distribution-aware
 corrections) to determine whether the observed degradation can be recovered
 without retraining.
@@ -71,7 +73,7 @@ decision:
 flowchart TB
     TGT["Target data\n(new row)"]
 
-    subgraph WRAPPER["ADAPT wrapper"]
+    subgraph WRAPPER["RECAL wrapper"]
         direction TB
         AL["Alignment layer\nPCA-CORAL · QT · WOE\n(fitted on target cohort)"]
         FM["FROZEN MODEL\nnever retrained\nweights unchanged"]
@@ -96,25 +98,31 @@ inference-time diagrams see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Quick start
 
 ```bash
-# 1. Install
+# 1. Install from GitHub (no clone needed)
+pip install git+https://github.com/ramsestein/ADAPT-Domain-Transfer-Wrapper.git
+
+# Or clone and install in editable mode for development
 pip install -e ".[dev]"
 
-# 2. Drop your files in
-cp your_model.json  inputs/models/
-cp source.csv       inputs/source/
-cp target.csv       inputs/target/
+# 2. Prepare inputs
+#   inputs/models/your_model.json   — frozen model (XGB / sklearn / Keras / torch / BYOM)
+#   inputs/source/source.csv       — source cohort (for distribution alignment)
+#   inputs/target/target.csv       — target validation cohort (must have labels)
+#   inputs/feature_schema.json     — ordered list of feature names
 
 # 3. Copy the example config and edit paths
 cp configs/example_snuh_to_clinic.yaml configs/my_run.yaml
 
 # 4. Run
-python -m adapt_cli.run --config configs/my_run.yaml
+recal --config configs/my_run.yaml
+# or equivalently:
+python -m recal_cli.run --config configs/my_run.yaml
 
 # Faster iteration (skip oracle + attribution)
-python -m adapt_cli.run --config configs/my_run.yaml --skip-expensive
+recal --config configs/my_run.yaml --skip-expensive
 
 # Override a single parameter without editing the YAML
-python -m adapt_cli.run --config configs/my_run.yaml --override adapt.pca_k=8
+recal --config configs/my_run.yaml --override recal_core.pca_k=8
 ```
 
 For the full walkthrough — including how to interpret every section of the
@@ -126,7 +134,7 @@ report — see [docs/USAGE.md](docs/USAGE.md).
 
 | Output | Description |
 |--------|-------------|
-| `outputs/adapted_models/<run_id>_<ts>.joblib` | Callable wrapper — load with `joblib.load()` and call `.predict_proba(X_target)` for production inference |
+| `outputs/recal_models/<run_id>_<ts>.joblib` | Callable wrapper — load with `joblib.load()` and call `.predict_proba(X_target)` for production inference |
 | `outputs/reports/<run_id>_<ts>.html` | Self-contained HTML report with all sections: drift, attribution, audit trail, calibration decomposition, counterfactuals |
 | `outputs/audit/<run_id>.yaml` | SHA-256 hashes of every input, full config, designer decisions, dependency versions — for exact reproducibility |
 
@@ -155,7 +163,7 @@ Full table (including joint drift and Brier decomposition signals) in
 ## Repository layout
 
 ```
-adapt_cli/            Public CLI package
+recal_cli/            Public CLI package
   ├── model_loader.py         Loads XGB / sklearn / keras / torch / BYOM
   ├── data_loader.py          CSV/parquet → CohortPair
   ├── config_schema.py        YAML validation (all parameters documented)
@@ -168,8 +176,8 @@ adapt_cli/            Public CLI package
   ├── oracle.py               Target oracle (k-fold ceiling)
   └── run.py                  End-to-end orchestrator
 
-adapt/                Internals (profiler, designer, pipeline, reporter)
-domain_transfer/      Alignment algorithms (PCA-CORAL, QT, WOE, calibration)
+recal_core/           Internals (profiler, designer, pipeline, reporter)
+recal/                Alignment algorithms (PCA-CORAL, QT, WOE, calibration)
 
 configs/              Your YAML run configurations
 inputs/               Your models, datasets and feature schema
@@ -218,12 +226,12 @@ See [docs/MODEL_FORMAT.md](docs/MODEL_FORMAT.md) for full details and examples.
 
 ## Citation
 
-If you use ADAPT in your work, please cite:
+If you use RECAL in your work, please cite:
 
 ```bibtex
 @software{marrero_garcia_adapt_2026,
   author  = {Marrero García, Ramses},
-  title   = {ADAPT — Domain Transfer Wrapper},
+  title   = {RECAL — Recalibration & Alignment Wrapper},
   year    = {2026},
   version = {0.2.0},
   license = {MIT}

@@ -9,11 +9,15 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-# ── adapt.designer_audit ───────────────────────────────────────────────────────
+# ── recal_core.designer_audit ───────────────────────────────────────────────────────
 
 class TestDesignerAudit:
     def test_record_and_get(self):
-        from adapt.designer_audit import AlternativeChoice, DesignerAuditTrail, DesignerDecision
+        from recal_core.designer_audit import (
+            AlternativeChoice,
+            DesignerAuditTrail,
+            DesignerDecision,
+        )
 
         trail = DesignerAuditTrail()
         d = DesignerDecision(
@@ -31,7 +35,11 @@ class TestDesignerAudit:
         assert trail.decisions[0].step == "mask_activate"
 
     def test_to_dict_serializable(self):
-        from adapt.designer_audit import AlternativeChoice, DesignerAuditTrail, DesignerDecision
+        from recal_core.designer_audit import (
+            AlternativeChoice,
+            DesignerAuditTrail,
+            DesignerDecision,
+        )
 
         trail = DesignerAuditTrail()
         trail.record(DesignerDecision(
@@ -48,7 +56,7 @@ class TestDesignerAudit:
     def test_to_json_roundtrip(self):
         import json
 
-        from adapt.designer_audit import DesignerAuditTrail, DesignerDecision
+        from recal_core.designer_audit import DesignerAuditTrail, DesignerDecision
 
         trail = DesignerAuditTrail()
         trail.record(DesignerDecision("s", "c", [], "choice", "just"))
@@ -57,7 +65,7 @@ class TestDesignerAudit:
         assert len(parsed) == 1
 
 
-# ── adapt_cli.oracle ───────────────────────────────────────────────────────────
+# ── recal_cli.oracle ───────────────────────────────────────────────────────────
 
 class TestOracle:
     def _make_data(self, n=100, seed=42):
@@ -67,7 +75,7 @@ class TestOracle:
         return X, y
 
     def test_fit_returns_dict_with_auroc(self):
-        from adapt_cli.oracle import fit_target_oracle
+        from recal_cli.oracle import fit_target_oracle
         X, y = self._make_data()
 
         class FakeModel:
@@ -80,7 +88,7 @@ class TestOracle:
 
     def test_handles_constant_scores(self):
         """No debe explotar con scores constantes."""
-        from adapt_cli.oracle import fit_target_oracle
+        from recal_cli.oracle import fit_target_oracle
 
         X = np.zeros((50, 3))
         y = np.array([0] * 25 + [1] * 25)
@@ -92,11 +100,11 @@ class TestOracle:
         assert "auroc" in result
 
 
-# ── adapt_cli.drift_attribution ───────────────────────────────────────────────
+# ── recal_cli.drift_attribution ───────────────────────────────────────────────
 
 class TestDriftDecomposition:
     def test_basic_decomposition(self):
-        from adapt_cli.drift_attribution import drift_decomposition
+        from recal_cli.drift_attribution import drift_decomposition
 
         result = drift_decomposition(
             auroc_raw=0.70,
@@ -113,7 +121,7 @@ class TestDriftDecomposition:
         assert not result["indeterminate"]
 
     def test_indeterminate_when_no_oracle(self):
-        from adapt_cli.drift_attribution import drift_decomposition
+        from recal_cli.drift_attribution import drift_decomposition
 
         result = drift_decomposition(
             auroc_raw=0.70,
@@ -127,7 +135,7 @@ class TestDriftDecomposition:
         assert result["recovery_ratio"] is None
 
     def test_zero_total_gap_indeterminate(self):
-        from adapt_cli.drift_attribution import drift_decomposition
+        from recal_cli.drift_attribution import drift_decomposition
 
         result = drift_decomposition(
             auroc_raw=0.80,
@@ -137,7 +145,7 @@ class TestDriftDecomposition:
         assert result["indeterminate"] is True
 
 
-# ── adapt_cli.calibration_decomposition ───────────────────────────────────────
+# ── recal_cli.calibration_decomposition ───────────────────────────────────────
 
 class TestBrierDecomposition:
     def _make_preds(self, n=200, seed=0):
@@ -147,7 +155,7 @@ class TestBrierDecomposition:
         return y.astype(float), scores
 
     def test_brier_total_check(self):
-        from adapt_cli.calibration_decomposition import brier_decompose
+        from recal_cli.calibration_decomposition import brier_decompose
 
         y, s = self._make_preds()
         result = brier_decompose(y, s)
@@ -156,7 +164,7 @@ class TestBrierDecomposition:
 
     def test_murphy_identity(self):
         """BS ≈ reliability − resolution + uncertainty."""
-        from adapt_cli.calibration_decomposition import brier_decompose
+        from recal_cli.calibration_decomposition import brier_decompose
 
         y, s = self._make_preds()
         r = brier_decompose(y, s, n_bins=10)
@@ -164,7 +172,7 @@ class TestBrierDecomposition:
         assert r["brier_score"] == pytest.approx(check, abs=0.01)
 
     def test_delta_negative_on_improvement(self):
-        from adapt_cli.calibration_decomposition import brier_decompose, brier_delta
+        from recal_cli.calibration_decomposition import brier_decompose, brier_delta
 
         y = np.array([0, 0, 1, 1] * 25, dtype=float)
         raw = brier_decompose(y, np.full(100, 0.5))  # worst calibration
@@ -178,15 +186,15 @@ class TestBrierDecomposition:
 
 class TestAdapterConfigFields:
     def test_audit_and_sweep_default_values(self):
-        from adapt.designer.base import AdapterConfig
+        from recal_core.designer.base import AdapterConfig
 
         cfg = AdapterConfig()
         assert cfg.audit is None
         assert cfg.mask_sweep_history == []
 
     def test_can_assign_audit(self):
-        from adapt.designer.base import AdapterConfig
-        from adapt.designer_audit import DesignerAuditTrail
+        from recal_core.designer.base import AdapterConfig
+        from recal_core.designer_audit import DesignerAuditTrail
 
         cfg = AdapterConfig()
         cfg.audit = DesignerAuditTrail()

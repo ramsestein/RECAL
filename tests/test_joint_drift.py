@@ -1,7 +1,7 @@
 """
 tests.test_joint_drift
 =======================
-Tests for adapt_cli.joint_drift using synthetic Gaussian data with
+Tests for recal_cli.joint_drift using synthetic Gaussian data with
 known covariance structure.
 """
 
@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from adapt_cli.joint_drift import (
+from recal_cli.joint_drift import (
     compute_condition_number,
     compute_effective_rank,
     compute_vif,

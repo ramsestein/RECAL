@@ -15,9 +15,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from domain_transfer.align.base import safe_invsqrtm, safe_sqrtm
-from domain_transfer.align.coral import CoralAligner
-from domain_transfer.align.pca_coral import PCACoralAligner
+from recal.align.base import safe_invsqrtm, safe_sqrtm
+from recal.align.coral import CoralAligner
+from recal.align.pca_coral import PCACoralAligner
 
 # ── Utilidades de covarianza ──────────────────────────────────────────────────
 

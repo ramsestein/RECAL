@@ -1,9 +1,9 @@
-# ADAPT — Overfitting control and the optimism gap
+# RECAL — Overfitting control and the optimism gap
 
 The mask-size selector (the *sweep*) searches over subsets of features to
 maximise adaptation performance on the target labels.  Because it optimises
 against those same labels, it can memorise noise — the adapted AUROC looks
-better than what you would actually get on truly new data.  ADAPT makes this
+better than what you would actually get on truly new data. RECAL makes this
 risk **visible and quantified**.
 
 ---
@@ -79,7 +79,7 @@ The sweep evaluates masks of increasing size up to `max_n_sweep`.  Fewer
 candidates = less multiple-testing = less optimism.
 
 ```yaml
-adapt:
+recal_core:
   max_n_sweep: 15   # down from default 30
 ```
 

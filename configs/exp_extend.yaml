@@ -1,7 +1,7 @@
 # configs/exp_extend.yaml
 #
 # Configuraciones para los experimentos de extensión del framework
-# domain_transfer (exp_extend).
+# recal (exp_extend).
 #
 # Cada configuración especifica qué aligner usar, qué features seleccionar,
 # qué N usar para enmascarar, y si se aplica recalibración estratificada.

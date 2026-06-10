@@ -1,4 +1,4 @@
-# ADAPT — Drift report metrics reference
+# RECAL — Drift report metrics reference
 
 Every metric in the HTML report and the `metrics.json` output is explained
 here: what it is, how it is computed, how to interpret it, and what thresholds
@@ -12,7 +12,7 @@ Cross-reference: [ARCHITECTURE.md — Decision boundaries](ARCHITECTURE.md#decis
 
 ### Drift type taxonomy
 
-ADAPT classifies each feature into one of six categories by combining a
+RECAL classifies each feature into one of six categories by combining a
 LASSO-based test for mean/variance shift and an XGBoost recovery score:
 
 | Category | Meaning |
@@ -70,7 +70,7 @@ regressed on all other features.  Measures multicollinearity.
 | ≥ `delta_vif_severe` | SEVERE | High collinearity; features may be redundant |
 
 If more than `severe_share_threshold` (default 20 %) of features are SEVERE,
-ADAPT emits a retraining recommendation.
+RECAL emits a retraining recommendation.
 
 ### Condition number
 
@@ -110,7 +110,7 @@ covariance for CORAL would produce unstable alignment — shrinkage is critical.
 
 ### MI matrix delta (optional)
 
-When `compute_mi_matrix: true`, ADAPT computes pairwise mutual information
+When `compute_mi_matrix: true`, RECAL computes pairwise mutual information
 between all feature pairs in source and target and reports the difference
 matrix as a heatmap.  Detects non-linear dependency changes that VIF misses.
 
@@ -221,7 +221,7 @@ irreducible.  Different between source and target when prevalence differs.
 
 ## Feature recovery attribution
 
-When `feature_attribution: true`, ADAPT runs a Shapley attribution of the
+When `feature_attribution: true`, RECAL runs a Shapley attribution of the
 `recoverable_gap` across individual features.  It answers: *which features,
 when aligned, contributed most to the performance recovery?*
 

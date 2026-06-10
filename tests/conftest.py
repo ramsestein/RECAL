@@ -1,5 +1,5 @@
 """
-Pytest fixtures compartidos para el paquete domain_transfer.
+Pytest fixtures compartidos para el paquete recal.
 
 Los fixtures sintéticos permiten ejecutar los tests de alineación, selección
 y bootstrap SIN depender de los CSVs de datos reales.  El test de

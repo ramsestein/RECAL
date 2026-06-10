@@ -1,4 +1,4 @@
-# ADAPT — Architecture
+# RECAL — Architecture
 
 > **Quick orientation:** three diagrams, one table.
 > Read the mental model (2 min) → skim the diagrams (3 min) → done.
@@ -9,7 +9,7 @@
 
 **The original model is frozen and never retrained.**
 Its weights, thresholds, and internal structure remain exactly as delivered by
-the collaborator. ADAPT does not have access to the model's training set. The
+the collaborator. RECAL does not have access to the model's training set. The
 source cohort is used only to characterise the distribution that the model
 already expects.
 
@@ -107,7 +107,7 @@ flowchart TD
 flowchart TB
     TGT["Target data\n(new row)"]
 
-    subgraph WRAPPER["ADAPT wrapper"]
+    subgraph WRAPPER["RECAL wrapper"]
         direction TB
         AL["Alignment layer\nPCA-CORAL · QT · WOE\n(fitted on target cohort)"]
         FM["FROZEN MODEL\nnever retrained\nweights unchanged"]
@@ -133,7 +133,7 @@ fit — it does not affect inference at all.
 
 Each run produces four artefacts:
 
-### `outputs/adapted_models/<run_id>_<ts>.joblib`
+### `outputs/recal_models/<run_id>_<ts>.joblib`
 
 A serialised `AdaptedModelWrapper` object (via `joblib`).  Calling
 `.predict_proba(X_target)` on it passes rows through the alignment layer,
