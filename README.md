@@ -221,6 +221,10 @@ See [docs/MODEL_FORMAT.md](docs/MODEL_FORMAT.md) for full details and examples.
 | [docs/MODEL_FORMAT.md](docs/MODEL_FORMAT.md) | All supported backends, saving instructions, BYOM skeleton |
 | [docs/OVERFITTING.md](docs/OVERFITTING.md) | Optimism gap: definition, thresholds, mitigation strategies |
 | [docs/DRIFT_REPORT.md](docs/DRIFT_REPORT.md) | Every metric in the report: definition, formula, thresholds |
+| [docs/TESTING.md](docs/TESTING.md) | Test suite overview, running instructions, synthetic vs real data |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Version history and notable changes |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Guidelines for contributors |
+| [docs/OPEN_QUESTIONS.md](docs/OPEN_QUESTIONS.md) | Known issues and research questions for future versions |
 
 ---
 
