@@ -34,7 +34,7 @@ The practical problem is usually twofold:
 RECAL is designed specifically for this scenario.
 
 Instead of modifying the original model weights, RECAL places an auditable and
-interpretable wrapper around the frozen model. Unlike classical domain adaptation (e.g. the RECAL method by Mathelin *et al.*, which retrains or fine-tunes the model), RECAL never touches the model weights. It only aligns input covariates and recalibrates output probabilities using a small labelled validation cohort from the target domain. This is external validation and recalibration, not retraining.
+interpretable wrapper around the frozen model. Unlike classical domain adaptation (e.g. the ADAPT method by Mathelin *et al.*, which retrains or fine-tunes the model), RECAL never touches the model weights. It only aligns input covariates and recalibrates output probabilities using a small labelled validation cohort from the target domain. This is external validation and recalibration, not retraining.
 
 The framework first performs a
 structured data audit to identify *why* the model fails in the target
@@ -242,9 +242,3 @@ See [CITATION.cff](CITATION.cff) for the full citation metadata.
 
 ---
 
-<!-- topics: domain-adaptation, transfer-learning, clinical-ml, model-calibration, coral, drift-detection, covariate-shift, model-validation -->
-
-## Citation
-
-If you use this wrapper in academic work, please cite the original paper of
-the model you transferred and this repository.

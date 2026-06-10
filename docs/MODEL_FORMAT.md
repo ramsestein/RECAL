@@ -114,7 +114,7 @@ model:
 
 ### NaN handling
 
-Keras models error on NaN inputs.  REACAL automatically imputes NaN values
+Keras models error on NaN inputs.  RECAL automatically imputes NaN values
 to **0** before calling the model.  This is a fallback — if your model is
 sensitive to imputation, handle missingness upstream.
 
