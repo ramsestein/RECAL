@@ -16,7 +16,10 @@ import logging
 import warnings
 
 import numpy as np
+from sklearn.metrics import roc_auc_score
 
+from recal.align.coral import CoralAligner
+from recal.align.pca_coral import PCACoralAligner
 from recal_core.profiler.base import DriftProfile
 from recal_core.profiler.constants import (
     CALIBRATION_HETEROGENEITY_PVALUE,
@@ -111,12 +114,6 @@ def _sweep_mask_n(
     reason : str
     sweep_history : list[dict]  — [{n, auroc}, ...] para todos los N probados
     """
-    import warnings
-
-    from sklearn.metrics import roc_auc_score
-
-    from recal.align.pca_coral import PCACoralAligner
-
     feat_names = [f.name for f in sorted_features]
     best_n, best_auroc = 0, -1.0
     sweep_history: list[dict] = []
@@ -343,10 +340,6 @@ def select_alignment_strategy(
     """
     if pair is None or model is None:
         return k_heuristic, False, f"No target sweep available: PCA-CORAL k={k_heuristic}"
-
-    from sklearn.metrics import roc_auc_score
-    from recal.align.pca_coral import PCACoralAligner
-    from recal.align.coral import CoralAligner
 
     idx_corr = pair.idx_corr
     X_s = np.nan_to_num(pair.X_s_imp[:, idx_corr], nan=0.0)

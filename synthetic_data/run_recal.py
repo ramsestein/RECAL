@@ -133,7 +133,7 @@ adapter.design(filtered_pair, pca_k=5, max_n_sweep=30)
 
 # Mostrar configuración seleccionada por el Designer
 if adapter._config:
-    print(f"\n--- Designer decisions ---")
+    print("\n--- Designer decisions ---")
     print(adapter._config.summary())
 
 # Fit y predict
