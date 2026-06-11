@@ -64,8 +64,9 @@ flowchart LR
 ```
 
 **What is learned from the target validation cohort:**
-- Alignment: feature-wise mean/covariance shift (CORAL), empirical quantile
-  mapping (QT), or event-rate bins (WOE).
+- Alignment: feature-wise mean/covariance shift via PCA-CORAL or CORAL pure
+  (automatically selected by alignment sweep), empirical quantile mapping (QT),
+  or event-rate bins (WOE).
 - Calibration: intercept + slope of Platt sigmoid fitted to target labels.
 
 **What comes unchanged from the original model:**
@@ -84,9 +85,9 @@ flowchart TD
 
     DP["Drift profiler\nPer-feature: drift_type taxonomy\nJoint: VIF source (only),\ncondition number, effective rank,\noptional MI matrix delta"] --> DES
 
-    DES["Designer\nDecide per-feature:\n• mask or keep\n• alignment method (CORAL/PCA-CORAL/QT/WOE/identity)\n• PCA k (shrinkage Ledoit-Wolf)\n• calibration type & C\nEvery decision → audit trail with\nalternatives considered"] --> FIT
+    DES["Designer\nDecide per-feature:\n• mask or keep\n• alignment method (PCA-CORAL k / CORAL pure)\n• QT, WOE (per-feature, if eligible)\n• calibration type & C\n\nAlignment sweep:\n  Compares CORAL pure vs PCA-CORAL k\n  on target AUROC → selects best.\n\nEvery decision → audit trail with\nalternatives considered"] --> FIT
 
-    FIT["Pipeline fit\n• PCA-CORAL with Ledoit-Wolf shrinkage\n• Quantile transform\n• WOE encoder with Laplace smoothing\n• Platt calibration with L2"] --> VAL
+    FIT["Pipeline fit\n• PCA-CORAL (k from alignment sweep) or CORAL pure\n• Quantile transform\n• WOE encoder with Laplace smoothing\n• Platt calibration with L2"] --> VAL
 
     VAL["Honest k-fold validation\noptimism_gap = in_sample_AUROC − OOF_AUROC"] --> ORA
 

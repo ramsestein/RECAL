@@ -43,11 +43,16 @@ class AdapterConfig:
         Número de bins para discretización.
 
     apply_pca_coral : bool
-        Si True, aplicar PCA-CORAL.
+        Si True, aplicar PCA-CORAL (o CORAL puro, ver use_coral_pure).
     pca_coral_k : int
         Número de componentes PCA-CORAL.
+        Si use_coral_pure=True, este valor se ignora.
     pca_coral_k_selection_method : str
         Método de selección de k: 'cv_source' | 'sqrt_n_target' | 'fixed'
+        | 'sweep_alignment' | 'coral_pure'
+    use_coral_pure : bool
+        Si True, usar CORAL puro (sin PCA) como aligner.
+        pca_coral_k se ignora. Seleccionado por alignment sweep.
 
     apply_calibration : bool
         Si True, recalibrar las probabilidades.
@@ -81,6 +86,8 @@ class AdapterConfig:
     apply_pca_coral: bool = True
     pca_coral_k: int = 5
     pca_coral_k_selection_method: str = "sqrt_n_target"
+    use_coral_pure: bool = False
+    """Si True, usar CORAL puro (sin PCA) como aligner. pca_coral_k se ignora."""
 
     # Calibración
     apply_calibration: bool = True
@@ -102,7 +109,7 @@ class AdapterConfig:
         lines.append(f"  mask:       {self.apply_mask} (N={self.mask_n}, method={self.mask_selection_method})")
         lines.append(f"  quantile:   {self.apply_quantile} ({len(self.quantile_features)} features, dist={self.quantile_output_distribution})")
         lines.append(f"  woe:        {self.apply_woe} ({len(self.woe_features)} features, bins={self.woe_n_bins})")
-        lines.append(f"  pca_coral:  {self.apply_pca_coral} (k={self.pca_coral_k}, method={self.pca_coral_k_selection_method})")
+        lines.append(f"  pca_coral:  {self.apply_pca_coral} (k={self.pca_coral_k}, coral_pure={self.use_coral_pure}, method={self.pca_coral_k_selection_method})")
         lines.append(f"  calibration:{self.apply_calibration} ({self.calibration_method})")
         if self.rationale:
             lines.append("  Rationale:")

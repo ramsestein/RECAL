@@ -66,6 +66,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [0.2.2] — 2026-06-11
 
-See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for planned future work.
+### Added
+- **Alignment strategy sweep** (`recal_core/designer/rules.py`): new function
+  `select_alignment_strategy()` that compares PCA-CORAL (with k around the
+  heuristic optimum) against CORAL pure via mini-sweep on target, selecting
+  whichever achieves the highest AUROC. This replaces the previous
+  variance-explained heuristic that never considered CORAL pure.
+- **`use_coral_pure` flag** (`recal_core/designer/base.py`): new boolean on
+  `AdapterConfig` that signals the pipeline to use `CoralAligner` instead of
+  `PCACoralAligner` when selected by the alignment sweep.
+- **CoralAligner support** (`recal_core/pipeline/auto_adapter.py`): `fit()` and
+  `_get_aligned_scores()` now handle both `PCACoralAligner` and `CoralAligner`
+  transparently based on `config.use_coral_pure`.
+
+### Changed
+- `recal_core/designer/selector.py` — The PCA-CORAL block now calls
+  `select_alignment_strategy()` when `pair` and `model` are available, enabling
+  the CORAL pure vs PCA-CORAL comparison. Falls back to variance-explained k
+  heuristic when no target data is available.
+- `recal_core/profiler/feature_profiler.py` — LASSO logistic regression updated
+  to use `l1_ratio=1` instead of the deprecated `penalty='l1'` parameter
+  (sklearn 1.8+ API).
+
+### Fixed
+- `synthetic_data/run_recala.py` — Removed all manual overrides that forced
+  masking, WOE, quantile transform, and calibration to `False`. The pipeline
+  now delegates fully to the Designer's internal heuristics. Removed manual
+  alignment sweep and handcrafted audit trail.
+- `recal_core/designer/rules.py` — Added missing `import warnings` needed by
+  the new `select_alignment_strategy()`.
+
+---

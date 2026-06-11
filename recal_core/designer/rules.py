@@ -13,6 +13,7 @@ IMPORTANTE: No añadir reglas sin justificación en el docstring.
 from __future__ import annotations
 
 import logging
+import warnings
 
 import numpy as np
 
@@ -313,6 +314,109 @@ def select_pca_coral_k(profile: DriftProfile) -> tuple[int, str]:
     return k_final, (
         f"k_cv={k_cv} (var≥80% in source), clipped to sqrt(n_target)={max_k} → k={k_final}"
     )
+
+
+def select_alignment_strategy(
+    profile: DriftProfile,
+    pair=None,
+    model=None,
+    k_heuristic: int = 5,
+) -> tuple[int, bool, str]:
+    """
+    Selecciona la mejor estrategia de alineación comparando PCA-CORAL vs
+    CORAL puro mediante mini-sweep en target.
+
+    Cuando pair y model están disponibles, barre:
+      - PCA-CORAL con k = k_heuristic - 1, k_heuristic, k_heuristic + 1
+      - CORAL puro (full rank, k=-1)
+    Eligiendo la que maximiza AUROC en target.
+
+    Sin pair/model: usa PCA-CORAL con k_heuristic (seguro para cualquier p/n).
+
+    Returns
+    -------
+    k : int
+        k para PCA-CORAL, o -1 si CORAL puro es mejor.
+    use_coral_pure : bool
+        True si CORAL puro fue seleccionado.
+    reason : str
+    """
+    if pair is None or model is None:
+        return k_heuristic, False, f"No target sweep available: PCA-CORAL k={k_heuristic}"
+
+    from sklearn.metrics import roc_auc_score
+    from recal.align.pca_coral import PCACoralAligner
+    from recal.align.coral import CoralAligner
+
+    idx_corr = pair.idx_corr
+    X_s = np.nan_to_num(pair.X_s_imp[:, idx_corr], nan=0.0)
+    X_t = np.nan_to_num(pair.X_t_imp[:, idx_corr], nan=0.0)
+
+    p_eff = X_s.shape[1]
+    n_t = X_t.shape[0]
+
+    # Candidatos: PCA-CORAL con k alrededor del heurístico + CORAL puro
+    candidates = []
+    for delta in [-1, 0, 1]:
+        k_candidate = max(PCA_CORAL_K_RANGE_MIN, min(k_heuristic + delta, p_eff - 1, n_t - 1))
+        if k_candidate >= PCA_CORAL_K_RANGE_MIN and k_candidate < p_eff and k_candidate < n_t:
+            candidates.append(("pca_coral", k_candidate))
+    candidates.append(("coral_pure", -1))
+
+    # Eliminar duplicados
+    seen = set()
+    unique_candidates = []
+    for kind, k_val in candidates:
+        key = (kind, k_val)
+        if key not in seen:
+            seen.add(key)
+            unique_candidates.append((kind, k_val))
+
+    results = []
+    best_k = k_heuristic
+    best_coral_pure = False
+    best_auroc = -1.0
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        for kind, k_val in unique_candidates:
+            try:
+                if kind == "coral_pure":
+                    aligner = CoralAligner(reg=1e-4, shrinkage="auto")
+                else:
+                    aligner = PCACoralAligner(k=k_val, reg_pca=1e-6, random_state=42)
+
+                aligner.fit(X_s, X_t)
+                X_t_aligned = aligner.transform(X_t, nan_mask=np.zeros_like(X_t, dtype=bool))
+
+                X_t_full = pair.X_t.copy()
+                X_t_full[:, idx_corr] = X_t_aligned
+
+                scores = model.predict_proba(X_t_full)
+                auroc = float(roc_auc_score(pair.y_t, scores))
+
+                results.append((kind, k_val, auroc))
+
+                if auroc > best_auroc:
+                    best_auroc = auroc
+                    best_k = k_val
+                    best_coral_pure = (kind == "coral_pure")
+            except Exception:
+                continue
+
+    if best_coral_pure:
+        reason = (
+            f"Alignment sweep on target: CORAL pure selected (AUROC={best_auroc:.4f}, "
+            f"competing k={[f'{k}({a:.3f})' for _, k, a in results if k != -1]})"
+        )
+    else:
+        reason = (
+            f"Alignment sweep on target: PCA-CORAL k={best_k} selected (AUROC={best_auroc:.4f}, "
+            f"coral_pure AUROC={next((a for kd, k, a in results if kd == 'coral_pure'), float('nan')):.3f})"
+        )
+
+    return best_k, best_coral_pure, reason
 
 
 # ── Regla 5: Calibración ─────────────────────────────────────────────────────

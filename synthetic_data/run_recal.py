@@ -27,14 +27,11 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import StratifiedKFold
 
-from recal.align.coral import CoralAligner
-from recal.align.pca_coral import PCACoralAligner
 from recal.data.pairing import CohortPair
 from recal.model.xgboost_wrapper import XGBoostWrapper
 from recal_cli.cross_validate import _bootstrap_auroc_ci
 from recal_cli.data_loader import GenericCohortLoader
 from recal_cli.drift_attribution import drift_decomposition
-from recal_core.designer_audit import AlternativeChoice, DesignerAuditTrail, DesignerDecision
 from recal_core.pipeline.auto_adapter import AutoAdapter
 from recal_core.reporter.html_report import generate_html_report
 
@@ -129,133 +126,19 @@ raw_metrics = {
 raw_ci = _bootstrap_auroc_ci(y_t, raw_proba)
 print(f"RAW   — AUROC: {raw_metrics['auroc']:.4f} [{raw_ci[0]:.4f}–{raw_ci[1]:.4f}], F1: {raw_metrics['f1']:.4f}")
 
-# ── 6. Profile + Design (una sola vez) ────────────────────────────────────────
+# ── 6. Profile + Design + Fit (pipeline completa) ────────────────────────────
 adapter = AutoAdapter(model=model, schema=schema)
 adapter.profile(filtered_pair)
 adapter.design(filtered_pair, pca_k=5, max_n_sweep=30)
-# Disable masking — it removes useful features in this synthetic scenario
+
+# Mostrar configuración seleccionada por el Designer
 if adapter._config:
-    adapter._config.apply_mask = False
-    adapter._config.mask_features = []
-    adapter._config.mask_n = 0
-    adapter._config.apply_woe = False
-    adapter._config.apply_quantile = False
-    adapter._config.apply_calibration = False
+    print(f"\n--- Designer decisions ---")
+    print(adapter._config.summary())
 
-
-# ── 6b. Helper: aplicar pipeline y predecir con un aligner custom ────────────
-def _predict_with_aligner(pair, aligner):
-    """Aplica WOE/QT/mask (desactivados) + alineación + modelo."""
-    X_t = pair.X_t_imp.copy()
-    X_s = pair.X_s_imp.copy()
-    idx_corr = pair.idx_corr
-    nan_mask_t = pair.nan_mask_t
-
-    mu_s = pair.mu_s
-    X_t = np.where(np.isnan(X_t), mu_s[np.newaxis, :], X_t)
-    X_t = np.nan_to_num(X_t, nan=0.0)
-
-    if aligner is not None:
-        X_s_corr = np.nan_to_num(X_s[:, idx_corr], nan=0.0)
-        X_t_corr = np.nan_to_num(X_t[:, idx_corr], nan=0.0)
-        nan_mask_corr = nan_mask_t[:, idx_corr]
-        aligner.fit(X_s_corr, X_t_corr)
-        X_t_corr_aligned = aligner.transform(X_t_corr, nan_mask=nan_mask_corr)
-        X_t[:, idx_corr] = X_t_corr_aligned
-
-    X_t[nan_mask_t] = np.nan
-    return model.predict_proba(X_t)
-
-
-# ── 6c. Barrido de estrategias de alineación ──────────────────────────────────
-print("\n--- Alignment sweep ---")
-sweep_results = []
-
-# 1. Sin alineación
-proba_none = _predict_with_aligner(filtered_pair, None)
-auroc_none = roc_auc_score(y_t, proba_none)
-sweep_results.append(("none", None, auroc_none, proba_none))
-print(f"  none        — AUROC: {auroc_none:.4f}")
-
-# 2. PCA-CORAL con distintos k
-for k in [2, 3, 5, 7, 10, 15, 20, 30, 50]:
-    aligner = PCACoralAligner(k=k, reg_pca=1e-6, random_state=42, shrinkage="auto")
-    proba = _predict_with_aligner(filtered_pair, aligner)
-    auroc = roc_auc_score(y_t, proba)
-    sweep_results.append((f"pca_coral_k{k}", k, auroc, proba))
-    print(f"  pca_coral_k{k:<2} — AUROC: {auroc:.4f}")
-
-# 3. CORAL puro
-aligner_coral = CoralAligner(reg=1e-4, shrinkage="auto")
-proba_coral = _predict_with_aligner(filtered_pair, aligner_coral)
-auroc_coral = roc_auc_score(y_t, proba_coral)
-sweep_results.append(("coral", None, auroc_coral, proba_coral))
-print(f"  coral       — AUROC: {auroc_coral:.4f}")
-
-# Seleccionar la mejor estrategia
-best_name, best_k, best_auroc, best_proba = max(sweep_results, key=lambda x: x[2])
-print(f"\n*** BEST: {best_name} (AUROC={best_auroc:.4f}) ***\n")
-
-# Actualizar adapter con la config ganadora
-if best_name.startswith("pca_coral"):
-    adapter._config.apply_pca_coral = True
-    adapter._config.pca_coral_k = best_k
-    adapter._config.pca_coral_k_selection_method = "sweep"
-elif best_name == "coral":
-    adapter._config.apply_pca_coral = True  # usamos CORAL como aligner principal
-    adapter._config.pca_coral_k = -1       # marcador especial para CORAL puro
-    adapter._config.pca_coral_k_selection_method = "coral_pure"
-else:
-    adapter._config.apply_pca_coral = False
-
-# Update rationale and audit trail to reflect actual decisions after sweep
-if adapter._config:
-    adapter._config.rationale["mask_activate"] = "Manually disabled: masking removes useful synthetic features"
-    adapter._config.rationale["mask_n"] = "N=0 (disabled)"
-    adapter._config.rationale["mask_features"] = "None (disabled)"
-    adapter._config.rationale["quantile"] = "Disabled: not needed for synthetic shift"
-    adapter._config.rationale["woe"] = "Disabled: not needed for synthetic shift"
-    adapter._config.rationale["calibration_activate"] = "Disabled: slope close to 1, no calibration needed"
-    adapter._config.rationale["pca_coral_activate"] = "Alignment sweep selected CORAL (pure) as best strategy"
-    adapter._config.rationale["pca_coral_k"] = "CORAL pure (no PCA) — k=-1 marker"
-
-    audit = DesignerAuditTrail()
-    audit.record(DesignerDecision(
-        step="mask_activate",
-        criterion="Manual override for synthetic data",
-        alternatives=[AlternativeChoice(choice=True, metric_name="auroc", metric_value=None, selected=False),
-                      AlternativeChoice(choice=False, metric_name="auroc", metric_value=None, selected=True)],
-        final_choice=False,
-        justification="Manually disabled: masking removes useful synthetic features",
-    ))
-    audit.record(DesignerDecision(
-        step="quantile_transform",
-        criterion="Manual override for synthetic data",
-        alternatives=[AlternativeChoice(choice=True, metric_name="auroc", metric_value=None, selected=False),
-                      AlternativeChoice(choice=False, metric_name="auroc", metric_value=None, selected=True)],
-        final_choice=False,
-        justification="Disabled: not needed for synthetic shift",
-    ))
-    audit.record(DesignerDecision(
-        step="woe_encoding",
-        criterion="Manual override for synthetic data",
-        alternatives=[AlternativeChoice(choice=True, metric_name="auroc", metric_value=None, selected=False),
-                      AlternativeChoice(choice=False, metric_name="auroc", metric_value=None, selected=True)],
-        final_choice=False,
-        justification="Disabled: not needed for synthetic shift",
-    ))
-    audit.record(DesignerDecision(
-        step="pca_coral_activate",
-        criterion="Alignment sweep (none vs PCA-CORAL k=[2..50] vs CORAL pure)",
-        alternatives=[AlternativeChoice(choice="none", metric_name="auroc", metric_value=auroc_none, selected=best_name == "none"),
-                      AlternativeChoice(choice="PCA-CORAL", metric_name="auroc", metric_value=0.8620, selected=False),
-                      AlternativeChoice(choice="CORAL pure", metric_name="auroc", metric_value=auroc_coral, selected=True)],
-        final_choice="CORAL pure",
-        justification=f"Alignment sweep selected CORAL (pure) as best strategy (AUROC={auroc_coral:.4f})",
-    ))
-    adapter._config.audit = audit
-
-recal_proba = best_proba
+# Fit y predict
+adapter.fit(filtered_pair)
+recal_proba = adapter.predict(filtered_pair)
 recal_pred = (recal_proba >= 0.5).astype(int)
 
 recal_metrics = {
@@ -268,8 +151,8 @@ recal_metrics = {
 recal_ci = _bootstrap_auroc_ci(y_t, recal_proba)
 print(f"RECAL — AUROC: {recal_metrics['auroc']:.4f} [{recal_ci[0]:.4f}–{recal_ci[1]:.4f}], F1: {recal_metrics['f1']:.4f}")
 
-# ── 7. K-fold CV honesto con la MEJOR estrategia del barrido ─────────────────
-print("\nRunning 5-fold CV (honest OOF) with best strategy ...")
+# ── 7. K-fold CV honesto ─────────────────────────────────────────────────────
+print("\nRunning 5-fold CV (honest OOF) ...")
 
 def _make_pair_subset(pair, idx):
     """Crea un CohortPair con target restringido a idx."""
@@ -292,41 +175,22 @@ for fold, (train_idx, test_idx) in enumerate(skf.split(X_t, y_t)):
     pair_tr = _make_pair_subset(filtered_pair, train_idx)
     pair_te = _make_pair_subset(filtered_pair, test_idx)
 
-    # Barrido dentro de cada fold (usando train para fit, evaluando en test)
-    fold_results = []
-    # none
-    proba = _predict_with_aligner(pair_tr, None)
-    auroc = roc_auc_score(pair_tr.y_t, proba)
-    fold_results.append(("none", None, auroc))
-    # pca-coral sweep
-    for k in [2, 3, 5, 7, 10, 15]:
-        aligner = PCACoralAligner(k=k, reg_pca=1e-6, random_state=42, shrinkage="auto")
-        proba = _predict_with_aligner(pair_tr, aligner)
-        auroc = roc_auc_score(pair_tr.y_t, proba)
-        fold_results.append((f"pca_coral_k{k}", k, auroc))
-    # coral pure
-    aligner = CoralAligner(reg=1e-4, shrinkage="auto")
-    proba = _predict_with_aligner(pair_tr, aligner)
-    auroc = roc_auc_score(pair_tr.y_t, proba)
-    fold_results.append(("coral", None, auroc))
+    # AutoAdapter completo (profile → design → fit) en train fold
+    cv_adapter = AutoAdapter(model=model, schema=schema)
+    cv_adapter.profile(pair_tr)
+    cv_adapter.design(pair_tr, pca_k=5, max_n_sweep=15)
+    cv_adapter.fit(pair_tr)
 
-    best_fold_name, best_fold_k, _ = max(fold_results, key=lambda x: x[2])
-    if best_fold_name.startswith("pca_coral"):
-        best_aligner = PCACoralAligner(k=best_fold_k, reg_pca=1e-6, random_state=42, shrinkage="auto")
-    elif best_fold_name == "coral":
-        best_aligner = CoralAligner(reg=1e-4, shrinkage="auto")
-    else:
-        best_aligner = None
-
-    scores_test = _predict_with_aligner(pair_te, best_aligner)
+    scores_test = cv_adapter.predict(pair_te)
     oof_scores[test_idx] = scores_test
 
+    cfg = cv_adapter._config
     m_fold = {
         "auroc": roc_auc_score(y_t[test_idx], scores_test),
         "f1": f1_score(y_t[test_idx], (scores_test >= 0.5).astype(int), zero_division=0),
     }
     cv_fold_metrics.append(m_fold)
-    print(f"  fold {fold + 1}/5: strategy={best_fold_name}, AUROC={m_fold['auroc']:.3f}, F1={m_fold['f1']:.3f}")
+    print(f"  fold {fold + 1}/5: mask={cfg.apply_mask}(N={cfg.mask_n}) PCA-CORAL k={cfg.pca_coral_k} WOE={cfg.apply_woe} QT={cfg.apply_quantile} cal={cfg.apply_calibration} → AUROC={m_fold['auroc']:.3f} F1={m_fold['f1']:.3f}")
 
 cv_auroc = roc_auc_score(y_t[~np.isnan(oof_scores)], oof_scores[~np.isnan(oof_scores)])
 cv_ci = _bootstrap_auroc_ci(y_t[~np.isnan(oof_scores)], oof_scores[~np.isnan(oof_scores)])

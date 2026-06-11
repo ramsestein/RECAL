@@ -72,8 +72,8 @@ def _compute_lbase_scores(
         warnings.simplefilter("ignore")
         try:
             lr = LogisticRegression(
-                C=1.0, penalty="l1", solver="saga",
-                max_iter=2000, random_state=42
+                C=1.0, l1_ratio=1, solver="saga",
+                max_iter=5000, random_state=42
             )
             lr.fit(X_std, y_source)
             lbase = np.abs(lr.coef_[0])

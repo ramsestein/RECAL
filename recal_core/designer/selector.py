@@ -194,19 +194,30 @@ class ComponentSelector:
         ))
 
         if apply_pcacoral:
-            k, k_reason = rules.select_pca_coral_k(profile)
-            config.pca_coral_k = k
-            config.pca_coral_k_selection_method = "sqrt_n_target"
-            rationale["pca_coral_k"] = k_reason
+            if pair is not None and model is not None:
+                k_heuristic, _ = rules.select_pca_coral_k(profile)
+                k, use_coral_pure, align_reason = rules.select_alignment_strategy(
+                    profile, pair=pair, model=model, k_heuristic=k_heuristic,
+                )
+                config.pca_coral_k = k
+                config.use_coral_pure = use_coral_pure
+                config.pca_coral_k_selection_method = "sweep_alignment" if not use_coral_pure else "coral_pure"
+                rationale["pca_coral_k"] = align_reason
+            else:
+                k, k_reason = rules.select_pca_coral_k(profile)
+                config.pca_coral_k = k
+                config.use_coral_pure = False
+                config.pca_coral_k_selection_method = "sqrt_n_target"
+                rationale["pca_coral_k"] = k_reason
             audit.record(DesignerDecision(
                 step="pca_coral_k",
-                criterion="floor(sqrt(n_target)) capped by p and n constraints",
+                criterion="alignment sweep (PCA-CORAL k variants vs CORAL pure) on target",
                 alternatives=[
                     AlternativeChoice(choice=k, metric_name="n_components",
                                       metric_value=None, selected=True),
                 ],
                 final_choice=k,
-                justification=k_reason,
+                justification=rationale["pca_coral_k"],
             ))
 
         # ── 5. Calibración ────────────────────────────────────────────────────

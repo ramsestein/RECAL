@@ -66,9 +66,11 @@ target:
 
 # ── Adaptation parameters ───────────────────────────────────────────────────
 recal_core:
-  pca_k: 5              # number of PCA components for PCA-CORAL alignment
-  max_n_sweep: 30       # max features to evaluate in the mask sweep
-                        # lower → faster, less overfitting risk
+  pca_k: 5              # heuristic starting k for PCA-CORAL alignment
+                        # The Designer runs a mini-sweep comparing PCA-CORAL
+                        # k = pca_k-1, pca_k, pca_k+1 vs CORAL pure on
+                        # target AUROC, selecting the best strategy.
+                        # Lower → faster, less overfitting risk
   apply_qt: true        # add quantile transform as a candidate per feature
   apply_woe: "auto"     # "auto" | true | false — WOE encoding for binary features
   max_missing_rate: 0.5 # drop target rows with > 50% NaN values

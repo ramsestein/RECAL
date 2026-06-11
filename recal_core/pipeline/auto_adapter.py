@@ -33,6 +33,7 @@ import warnings
 
 import numpy as np
 
+from recal.align.coral import CoralAligner
 from recal.align.pca_coral import PCACoralAligner
 from recal.align.quantile_transform import QuantileTransformAligner
 from recal.calibration.stratified_platt import StratifiedPlattRecalibrator
@@ -226,11 +227,14 @@ class AutoAdapter:
         else:
             self._fitted_qt = None
 
-        # Paso 4: PCA-CORAL (fit en source+target)
+        # Paso 4: PCA-CORAL o CORAL puro (fit en source+target)
         if config.apply_pca_coral:
-            self._fitted_aligner = PCACoralAligner(
-                k=config.pca_coral_k, reg_pca=1e-6, random_state=42
-            )
+            if config.use_coral_pure:
+                self._fitted_aligner = CoralAligner(reg=1e-4, shrinkage="auto")
+            else:
+                self._fitted_aligner = PCACoralAligner(
+                    k=config.pca_coral_k, reg_pca=1e-6, random_state=42
+                )
         else:
             self._fitted_aligner = None
 
