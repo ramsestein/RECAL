@@ -43,6 +43,8 @@ inputs/source/
 inputs/target/
 inputs/models/
 !inputs/feature_schema.json
+!*synthetic_data/models/feature_schema.json
+*.joblib
 
 # Reference datasets (large, do not commit)
 datasets/
@@ -61,3 +63,4 @@ snuh_aki_model.json
 snuh_aki_pipeline.json
 preprocess_data.py
 configs/snuh_model_to_clinic.yaml
+recal_v0.2.1.tar

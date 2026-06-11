@@ -1,8 +1,8 @@
 {
-  "apply_mask": "True",
-  "mask_features": "['FA_03', 'X19', 'X12', 'FA_09', 'FA_07', 'X18', 'N09', 'FA_06', 'N08', 'X14', 'X17', 'N05']",
-  "mask_n": "12",
-  "mask_selection_method": "elbow_source",
+  "apply_mask": "False",
+  "mask_features": "[]",
+  "mask_n": "0",
+  "mask_selection_method": "sweep_pca_coral",
   "apply_quantile": "False",
   "quantile_features": "[]",
   "quantile_output_distribution": "uniform",
@@ -10,12 +10,12 @@
   "woe_features": "[]",
   "woe_n_bins": "10",
   "apply_pca_coral": "True",
-  "pca_coral_k": "5",
-  "pca_coral_k_selection_method": "sqrt_n_target",
-  "apply_calibration": "True",
-  "calibration_method": "isotonic_loo",
+  "pca_coral_k": "-1",
+  "pca_coral_k_selection_method": "coral_pure",
+  "apply_calibration": "False",
+  "calibration_method": "platt_loo",
   "calibration_strata_fn": "None",
-  "rationale": "{'mask_activate': 'n_target_events=594 >= 20: mask activated', 'mask_n': 'elbow of combined score in source: N=12 (D_ponzonous=15)', 'mask_features': 'Bottom-12 por combined_score: FA_03, X19, X12, FA_09, FA_07...', 'quantile': 'QT on 0 features after filtering near-constants (CV<0.05) and moderate ratios (0.5\u20132.0)', 'woe': 'WOE on 0 STABLE/LINEAR_RECOVERABLE features with SHAP >= 0.005', 'pca_coral_activate': 'PCA-CORAL is the default robust aligner under any p/n ratio', 'pca_coral_k': 'k_cv=5 (var\u226580% in source), clipped to sqrt(n_target)=31 \u2192 k=5', 'calibration_activate': 'slope=0.06: |slope-1|=0.94 > 0.5: recalibration required', 'calibration_method': 'n_events_target=594 >= 500: isotonic regression viable'}",
-  "audit": "DesignerAuditTrail(n_decisions=9)",
-  "mask_sweep_history": "[]"
+  "rationale": "{'mask_activate': 'Manually disabled: masking removes useful synthetic features', 'mask_n': 'N=0 (disabled)', 'mask_features': 'None (disabled)', 'quantile': 'Disabled: not needed for synthetic shift', 'woe': 'Disabled: not needed for synthetic shift', 'pca_coral_activate': 'Alignment sweep selected CORAL (pure) as best strategy', 'pca_coral_k': 'CORAL pure (no PCA) \u2014 k=-1 marker', 'calibration_activate': 'Disabled: slope close to 1, no calibration needed'}",
+  "audit": "DesignerAuditTrail(n_decisions=4)",
+  "mask_sweep_history": "[{'n': 0, 'auroc': 0.6581744868035192}, {'n': 1, 'auroc': 0.6665139296187683}, {'n': 2, 'auroc': 0.6983137829912023}, {'n': 3, 'auroc': 0.7360703812316716}, {'n': 4, 'auroc': 0.7333211143695014}, {'n': 5, 'auroc': 0.7107771260997067}, {'n': 6, 'auroc': 0.6667888563049853}, {'n': 7, 'auroc': 0.6601906158357771}, {'n': 8, 'auroc': 0.6948313782991202}, {'n': 9, 'auroc': 0.6926319648093843}, {'n': 10, 'auroc': 0.6885997067448679}, {'n': 11, 'auroc': 0.7005131964809383}, {'n': 12, 'auroc': 0.7115102639296187}]"
 }

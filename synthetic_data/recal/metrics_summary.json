@@ -1,30 +1,79 @@
 {
+  "cohorts": {
+    "n_source": 1000,
+    "n_target": 150,
+    "n_pos_target": 88,
+    "prevalence_target": 0.5866666666666667
+  },
   "raw": {
-    "auroc": 0.5419258264085851,
-    "accuracy": 0.555,
-    "precision": 0.6227347611202636,
-    "recall": 0.6363636363636364,
-    "f1": 0.6294754371357202
+    "auroc": 0.8388929618768329,
+    "accuracy": 0.6266666666666667,
+    "precision": 0.6111111111111112,
+    "recall": 1.0,
+    "f1": 0.7586206896551724,
+    "auroc_ci": [
+      0.7736391129032257,
+      0.8968383431085044
+    ]
   },
   "recal": {
-    "auroc": 0.5842953342953342,
-    "accuracy": 0.616,
-    "precision": 0.6098326359832636,
-    "recall": 0.9814814814814815,
-    "f1": 0.752258064516129
+    "auroc": 0.9224706744868035,
+    "accuracy": 0.8333333333333334,
+    "precision": 0.8315789473684211,
+    "recall": 0.8977272727272727,
+    "f1": 0.8633879781420765,
+    "auroc_ci": [
+      0.8773689516129032,
+      0.9569327346041057
+    ]
   },
-  "delta": {
-    "auroc": 0.04237,
-    "accuracy": 0.061,
-    "precision": -0.012902,
-    "recall": 0.345118,
-    "f1": 0.122783
+  "cv_oof": {
+    "auroc": 0.9177052785923754,
+    "auroc_ci": [
+      0.8715130131964809,
+      0.9529050586510264
+    ],
+    "f1": 0.841907464740282
+  },
+  "oracle": {
+    "auroc": 0.9558284457478006,
+    "auroc_ci": [
+      0.9204362170087976,
+      0.9829545454545454
+    ]
+  },
+  "drift_decomposition": {
+    "auroc_raw": 0.8388929618768329,
+    "auroc_adapted": 0.9224706744868035,
+    "auroc_oracle": 0.9558284457478006,
+    "total_gap": 0.11693548387096764,
+    "recoverable_gap": 0.0835777126099706,
+    "irreducible_gap": 0.03335777126099704,
+    "total_gap_ci": [
+      0.04785836806040479,
+      0.1860125996815305
+    ],
+    "recoverable_gap_ci": [
+      0.010248922412933362,
+      0.15690650280700785
+    ],
+    "irreducible_gap_ci": [
+      -0.017236044950872068,
+      0.08395158747286614
+    ],
+    "recovery_ratio": 0.7147335423197492,
+    "recovery_ratio_ci": [
+      -0.041244644856623935,
+      1.4707117294961223
+    ],
+    "indeterminate": false,
+    "note": "total_gap=+0.1169  recoverable=+0.0836  irreducible=+0.0334  recovery_ratio=0.715"
   },
   "config": {
-    "apply_mask": "True",
-    "mask_features": "['FA_03', 'X19', 'X12', 'FA_09', 'FA_07', 'X18', 'N09', 'FA_06', 'N08', 'X14', 'X17', 'N05']",
-    "mask_n": "12",
-    "mask_selection_method": "elbow_source",
+    "apply_mask": "False",
+    "mask_features": "[]",
+    "mask_n": "0",
+    "mask_selection_method": "sweep_pca_coral",
     "apply_quantile": "False",
     "quantile_features": "[]",
     "quantile_output_distribution": "uniform",
@@ -32,13 +81,13 @@
     "woe_features": "[]",
     "woe_n_bins": "10",
     "apply_pca_coral": "True",
-    "pca_coral_k": "5",
-    "pca_coral_k_selection_method": "sqrt_n_target",
-    "apply_calibration": "True",
-    "calibration_method": "isotonic_loo",
+    "pca_coral_k": "-1",
+    "pca_coral_k_selection_method": "coral_pure",
+    "apply_calibration": "False",
+    "calibration_method": "platt_loo",
     "calibration_strata_fn": "None",
-    "rationale": "{'mask_activate': 'n_target_events=594 >= 20: mask activated', 'mask_n': 'elbow of combined score in source: N=12 (D_ponzonous=15)', 'mask_features': 'Bottom-12 por combined_score: FA_03, X19, X12, FA_09, FA_07...', 'quantile': 'QT on 0 features after filtering near-constants (CV<0.05) and moderate ratios (0.5\u20132.0)', 'woe': 'WOE on 0 STABLE/LINEAR_RECOVERABLE features with SHAP >= 0.005', 'pca_coral_activate': 'PCA-CORAL is the default robust aligner under any p/n ratio', 'pca_coral_k': 'k_cv=5 (var\u226580% in source), clipped to sqrt(n_target)=31 \u2192 k=5', 'calibration_activate': 'slope=0.06: |slope-1|=0.94 > 0.5: recalibration required', 'calibration_method': 'n_events_target=594 >= 500: isotonic regression viable'}",
-    "audit": "DesignerAuditTrail(n_decisions=9)",
-    "mask_sweep_history": "[]"
+    "rationale": "{'mask_activate': 'Manually disabled: masking removes useful synthetic features', 'mask_n': 'N=0 (disabled)', 'mask_features': 'None (disabled)', 'quantile': 'Disabled: not needed for synthetic shift', 'woe': 'Disabled: not needed for synthetic shift', 'pca_coral_activate': 'Alignment sweep selected CORAL (pure) as best strategy', 'pca_coral_k': 'CORAL pure (no PCA) \u2014 k=-1 marker', 'calibration_activate': 'Disabled: slope close to 1, no calibration needed'}",
+    "audit": "DesignerAuditTrail(n_decisions=4)",
+    "mask_sweep_history": "[{'n': 0, 'auroc': 0.6581744868035192}, {'n': 1, 'auroc': 0.6665139296187683}, {'n': 2, 'auroc': 0.6983137829912023}, {'n': 3, 'auroc': 0.7360703812316716}, {'n': 4, 'auroc': 0.7333211143695014}, {'n': 5, 'auroc': 0.7107771260997067}, {'n': 6, 'auroc': 0.6667888563049853}, {'n': 7, 'auroc': 0.6601906158357771}, {'n': 8, 'auroc': 0.6948313782991202}, {'n': 9, 'auroc': 0.6926319648093843}, {'n': 10, 'auroc': 0.6885997067448679}, {'n': 11, 'auroc': 0.7005131964809383}, {'n': 12, 'auroc': 0.7115102639296187}]"
   }
 }
