@@ -94,7 +94,7 @@ flowchart TB
 
     subgraph WRAPPER["RECAL wrapper"]
         direction TB
-        AL["Alignment layer\nPCA-CORAL · QT · WOE\n(fitted on target cohort)"]
+        AL["Alignment layer\nPCA-CORAL · CORAL pure · QT · WOE\n(fitted on target cohort)\n\nStrategy auto-selected by alignment sweep\non target AUROC"]
         FM["FROZEN MODEL\nnever retrained\nweights unchanged"]
         CL["Calibration layer\nPlatt L2\n(fitted on target cohort)"]
         AL --> FM --> CL
@@ -142,6 +142,10 @@ recal --config configs/my_run.yaml --skip-expensive
 
 # Override a single parameter without editing the YAML
 recal --config configs/my_run.yaml --override recal_core.pca_k=8
+
+The Designer automatically compares PCA-CORAL (with k around the heuristic)
+against CORAL pure via a mini-sweep on target AUROC, selecting whichever
+performs best. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 ```
 
 For the full walkthrough — including how to interpret every section of the
@@ -257,7 +261,7 @@ If you use RECAL in your work, please cite:
   author  = {Marrero García, Ramses},
   title   = {RECAL — Recalibration & Alignment Wrapper},
   year    = {2026},
-  version = {0.2.0},
+  version = {0.2.2},
   license = {MIT}
 }
 ```
