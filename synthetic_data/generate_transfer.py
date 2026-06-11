@@ -1,9 +1,9 @@
-"""Generate a TRANSFERRED synthetic dataset by applying domain-shift transformations.
+"""Generate a TRANSFERRED synthetic dataset with recoverable domain shift.
 
-Reads the original synthetic_features.csv, applies monotonic/non-linear transforms
-to the 20 base columns, recomputes the engineered features (F3, FA), recomputes
-the polynomial target, and finally applies a non-linear warp:
-    new_target = sin(target ** log(target)) * 42
+Generates a fresh 150-row target cohort (unseen by source model), applies
+moderate covariate shift (mean/scale) plus mild concept shift (weaker
+coefficients), recomputes F3/FA, and builds the target.  This mirrors the
+drift pattern used in RECAL's own e2e tests.
 """
 from pathlib import Path
 
@@ -12,95 +12,99 @@ import pandas as pd
 
 rng = np.random.RandomState(43)
 
-# ── 1. Load original data ───────────────────────────────────────────────────
+# ── 1. Generate a fresh target cohort (never seen by source model) ─────────
 data_dir = Path(__file__).parent
-df_orig = pd.read_csv(data_dir / "synthetic_features.csv")
+n_target = 150
 
-# Extract the 20 independent columns
-base_names = [f"X{i:02d}" for i in range(20)]
-base = df_orig[base_names].values.astype(np.float32)
-
-# ── 2. Apply domain-shift transformations to each of the 20 base columns ────
-# Each column gets a distinct monotonic or mild non-linear warp
+target_rng = np.random.RandomState(44)
+base = target_rng.randn(n_target, 20).astype(np.float32)
 n = base.shape[0]
-transformed = np.empty_like(base)
 
-transformed[:, 0]  = base[:, 0] ** 2                     # x^2
-transformed[:, 1]  = np.sqrt(np.abs(base[:, 1]))        # sqrt(|x|)
-transformed[:, 2]  = base[:, 2] ** 3                     # x^3
-transformed[:, 3]  = np.sin(base[:, 3])                  # sin(x)
-transformed[:, 4]  = np.exp(base[:, 4] / 5.0)            # exp(x/5)
-transformed[:, 5]  = np.log1p(np.abs(base[:, 5]))        # log(|x|+1)
-transformed[:, 6]  = np.tanh(base[:, 6] * 2.0)           # tanh(2x)
-transformed[:, 7]  = base[:, 7] * 2.0                    # 2x
-transformed[:, 8]  = base[:, 8] + 3.0                    # x+3
-transformed[:, 9]  = base[:, 9] ** 2 + base[:, 9]        # x^2 + x
-transformed[:, 10] = np.abs(base[:, 10])                 # |x|
-transformed[:, 11] = base[:, 11] * 0.5                   # x/2
-transformed[:, 12] = base[:, 12] ** 3 - base[:, 12]      # x^3 - x
-transformed[:, 13] = np.cos(base[:, 13])                 # cos(x)
-transformed[:, 14] = base[:, 14] ** 2 * np.sign(base[:, 14])  # x^2 * sign(x)
-transformed[:, 15] = np.log1p(np.abs(base[:, 15]))       # log(|x|+1) again
-transformed[:, 16] = base[:, 16] * (1.0 + 0.1 * base[:, 16])  # x(1+0.1x)
-transformed[:, 17] = base[:, 17] ** 2 + 2 * base[:, 17] + 1  # (x+1)^2
-transformed[:, 18] = np.sqrt(base[:, 18] ** 2 + 1.0)     # sqrt(x^2+1)
-transformed[:, 19] = base[:, 19] * np.sin(base[:, 19])   # x*sin(x)
+# ── 2. Apply covariate shift (mean + scale) ─────────────────────────────────
+# Mean shifts on the first two features (like RECAL's own e2e test)
+base[:, 0] += 1.5
+base[:, 1] -= 1.0
 
-# ── 3. Recompute F3 (functions of 3 random columns) ─────────────────────────
-# Use the SAME random seed as original so we pick the SAME triples
+# Scale shifts on a few others
+base[:, 2] *= 1.4
+base[:, 5] *= 0.7
+base[:, 8] *= 1.3
+base[:, 12] *= 0.6
+base[:, 15] *= 1.2
+base[:, 18] *= 0.8
+
+# ── 3. Recompute F3 (same random triples as source) ─────────────────────────
 cols = {}
 for i in range(20):
-    cols[f"X{i:02d}"] = transformed[:, i]
+    cols[f"X{i:02d}"] = base[:, i]
 
 rng_orig = np.random.RandomState(42)
 for j in range(10):
     idx = rng_orig.choice(20, 3, replace=False)
-    a, b, c = transformed[:, idx[0]], transformed[:, idx[1]], transformed[:, idx[2]]
+    a, b, c = base[:, idx[0]], base[:, idx[1]], base[:, idx[2]]
     func = (
-        0.5 * np.sin(a)
-        + 0.3 * np.cos(b)
-        + 0.2 * (c ** 2)
+        0.5 * a
+        + 0.3 * b
+        + 0.2 * c
         + 0.1 * a * b
-        + 0.05 * rng.randn(n)
+        + 0.05 * target_rng.randn(n)
     )
     cols[f"F3_{j:02d}"] = func.astype(np.float32)
 
-# ── 4. Recompute FA (functions of all 20 columns) ───────────────────────────
+# ── 4. Recompute FA (same weights as source) ──────────────────────────────
 for j in range(10):
     weights = rng_orig.randn(20)
     weights /= np.linalg.norm(weights)
-    linear = transformed @ weights
+    linear = base @ weights
     func = (
         0.6 * linear
-        + 0.3 * np.tanh(linear)
-        + 0.1 * rng.randn(n)
+        + 0.3 * linear ** 2
+        + 0.1 * target_rng.randn(n)
     )
     cols[f"FA_{j:02d}"] = func.astype(np.float32)
 
-# ── 5. Keep noise columns (same random seed = same values) ────────────────────
+# ── 5. Fresh noise columns ──────────────────────────────────────────────────
 for j in range(10):
-    cols[f"N{j:02d}"] = rng_orig.randn(n).astype(np.float32)
+    cols[f"N{j:02d}"] = target_rng.randn(n).astype(np.float32)
 
-# ── 6. Use ORIGINAL target from source (no concept shift, only covariate shift) ─
-target_binary = df_orig["target"].values.astype(int)
+# ── 6. Recompute target with MILD concept shift (weaker coefficients) ───────
+# The same functional form but with attenuated coefficients simulates a
+# scenario where the biological/clinical signal is slightly different.
+x0, x1, x2 = cols["X00"], cols["X01"], cols["X02"]
+f3_0, f3_1, f3_2 = cols["F3_00"], cols["F3_01"], cols["F3_02"]
+fa_0, fa_1 = cols["FA_00"], cols["FA_01"]
+
+target = (
+    1.5 * x0          # was 2.0  (-25%)
+    - 1.2 * x1        # was -1.5 (-20%)
+    + 0.6 * x2        # was 0.8  (-25%)
+    + 0.9 * f3_0      # was 1.2  (-25%)
+    - 0.7 * f3_1      # was -0.9 (-22%)
+    + 0.4 * f3_2      # was 0.5  (-20%)
+    + 0.75 * fa_0     # was 1.0  (-25%)
+    - 0.5 * fa_1      # was -0.7 (-29%)
+    + 0.45 * (x0 ** 2)  # was 0.6 (-25%)
+    - 0.3 * (x1 * x2)   # was -0.4 (-25%)
+    + 0.22 * (f3_0 * f3_1)  # was 0.3 (-27%)
+    + 0.15 * (fa_0 * fa_1)  # was 0.2 (-25%)
+    + 0.08 * (x0 * f3_0 * fa_0)  # was 0.1 (-20%)
+    + 0.30 * target_rng.randn(n)  # more noise (was 0.05)
+)
+
+# Sigmoid + adaptive threshold to match source prevalence (~0.59)
+target_prob = 1.0 / (1.0 + np.exp(-target))
+# Use the 41st percentile as threshold to get ~59% prevalence
+threshold = float(np.percentile(target_prob, 41.0))
+target_binary = (target_prob >= threshold).astype(int)
 cols["target"] = target_binary
 
-# ── 8. Extra domain shift: scale half the features by random factors ────────
+# ── 7. Extra mild scaling on 10 features ─────────────────────────────────────
 feature_names = [c for c in cols if c != "target"]
-n_features = len(feature_names)
-n_to_perturb = n_features // 2  # 25 features
-perturbed = rng.choice(feature_names, n_to_perturb, replace=False)
+perturbed = rng.choice(feature_names, 10, replace=False)
 for fname in perturbed:
-    scale_factor = rng.uniform(0.3, 2.5)
-    cols[fname] = (cols[fname] * scale_factor).astype(np.float32)
-print(f"Perturbed {n_to_perturb} features with random scale factors: {perturbed[:5]}...")
-
-# ── 9. Replace 5 random features with pure noise (no relation to original) ───
-feature_names = [c for c in cols if c != "target"]
-randomised = rng.choice(feature_names, 5, replace=False)
-for fname in randomised:
-    cols[fname] = rng.randn(n).astype(np.float32)
-print(f"Replaced 5 features with pure noise: {randomised}")
+    factor = rng.uniform(0.7, 1.4)
+    cols[fname] = (cols[fname] * factor).astype(np.float32)
+print(f"Mildly scaled 10 features: {perturbed[:5]}...")
 
 # ── Save ─────────────────────────────────────────────────────────────────────
 df = pd.DataFrame(cols)

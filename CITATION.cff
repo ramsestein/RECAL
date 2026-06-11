@@ -10,7 +10,7 @@ abstract: >
   probabilities using a small labelled target validation cohort.
   Supports XGBoost, scikit-learn, Keras, PyTorch, and custom (BYOM) backends.
 
-version: "0.2.0"
+version: "0.2.1"
 date-released: "2026-06-10"
 license: MIT
 
@@ -20,6 +20,7 @@ authors:
     orcid: "0000-0003-3054-1345"
 
 repository-code: "https://zenodo.org/records/20620664"
+doi: "10.5281/zenodo.20635851"
 
 keywords:
   - domain-adaptation

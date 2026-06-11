@@ -172,7 +172,7 @@ def _render_cv_section(in_sample: dict | None, cv: dict | None) -> str:
     )
 
     return f"""
-<h3>3.3 Honest validation (Stratified k-fold CV)</h3>
+<h3>4.3 Honest validation (Stratified k-fold CV)</h3>
 <p>
 Each fold re-runs the full sweep + fit on the train split and predicts on the
 held-out test split (which the pipeline never sees). The P/R/F1 decision
@@ -606,7 +606,7 @@ def _render_drift_attribution_section(
 """
 
     return f"""
-<h2>6. Drift Attribution</h2>
+<h2>5. Drift Attribution</h2>
 {oracle_warning}
 {gap_table}
 {attr_section}
@@ -658,7 +658,7 @@ def _render_designer_audit_section(audit) -> str:
         )
 
     return f"""
-<h2>7. Designer Audit Trail</h2>
+<h2>6. Designer Audit Trail</h2>
 <p>Each row corresponds to one Designer decision. The
 <em>Alternatives</em> column lists all evaluated options (✓ = chosen).
 The criterion is the business rule governing the decision.</p>
@@ -1117,7 +1117,7 @@ def generate_html_report(
   Mask: {badge(config.apply_mask)} N={config.mask_n} |
   QT: {badge(config.apply_quantile)} |
   WOE: {badge(config.apply_woe)} |
-  PCA-CORAL: {badge(config.apply_pca_coral)} k={config.pca_coral_k} |
+  {'CORAL (pure):' if config.apply_pca_coral and config.pca_coral_k == -1 else 'PCA-CORAL:'} {badge(config.apply_pca_coral)} {'k=' + str(config.pca_coral_k) if not (config.apply_pca_coral and config.pca_coral_k == -1) else ''} |
   Calibration: {badge(config.apply_calibration)} {config.calibration_method}
 </div>
 
@@ -1147,11 +1147,16 @@ def generate_html_report(
 <h2>2. Designer Decisions</h2>
 {_md_to_html_table(tbl_decisions)}
 
-<h2>3. Pipeline Evaluation</h2>
-<h3>3.1 Metrics: source reference / target raw / target adapted</h3>
+<h2>3. Designer Rationale</h2>
+<ul>
+{''.join(f"<li><strong>[{k}]</strong> {v}</li>" for k, v in config.rationale.items())}
+</ul>
+
+<h2>4. Pipeline Evaluation</h2>
+<h3>4.1 Metrics: source reference / target raw / target adapted</h3>
 {_md_to_html_table(tbl_eval)}
 
-<h3>3.2 Reliability diagram</h3>
+<h3>4.2 Reliability diagram</h3>
 <div class="fig-container">
   <img src="data:image/png;base64,{b64_fig2}" alt="Calibration curve">
 </div>
@@ -1173,11 +1178,6 @@ def generate_html_report(
 {_render_feature_log_section(feature_log, combined_scores=feature_combined_scores)}
 
 {_render_calibration_decomp_section(brier_decomp_raw, brier_decomp_adapted, brier_delta, audit_yaml_path)}
-
-<h2>4. Designer Rationale</h2>
-<ul>
-{''.join(f"<li><strong>[{k}]</strong> {v}</li>" for k, v in config.rationale.items())}
-</ul>
 
 <p class="meta">
   RECAL is a research tool. It does not replace independent clinical

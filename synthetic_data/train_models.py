@@ -37,9 +37,9 @@ X_train, X_test, y_train, y_test = train_test_split(
 # ── 2. Train XGBoost ───────────────────────────────────────────────────────
 xgb_model = xgb.XGBClassifier(
     objective="binary:logistic",
-    n_estimators=200,
-    max_depth=5,
-    learning_rate=0.05,
+    n_estimators=50,
+    max_depth=3,
+    learning_rate=0.1,
     subsample=0.8,
     colsample_bytree=0.8,
     random_state=42,

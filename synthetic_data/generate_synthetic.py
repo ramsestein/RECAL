@@ -83,7 +83,7 @@ target = (
     + 0.3 * (f3_0 * f3_1)
     + 0.2 * (fa_0 * fa_1)
     + 0.1 * (x0 * f3_0 * fa_0)
-    + 0.05 * rng.randn(n_samples)
+    + 0.30 * rng.randn(n_samples)
 )
 
 # Normalise to [0,1] via sigmoid, then threshold at 0.5 for binary label
