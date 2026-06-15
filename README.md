@@ -85,6 +85,18 @@ decision:
   and that local retraining or redesign is necessary.
 
 ---
+## Metadata Code Table
+| Code | Description | metadata | 
+|------|-------------|----------|
+|C1 |Current code version | v0.2.2
+|C2 |Permanent link to code/repository used for this code version	| https://github.com/ramsestein/RECAL
+|C3 |Permanent link to Reproducible Capsule (archived version) | https://doi.org/10.5281/zenodo.20637830
+|C4 |Legal Code License | MIT License
+|C5 |Code versioning system used	| git
+|C6 |Software code languages, tools, and services used | Python (3.10–3.12); NumPy, SciPy, scikit-learn, XGBoost; optional TensorFlow/Keras and PyTorch; GitHub Actions (CI)
+|C7 |Compilation requirements, operating environments & dependencies	| Python ≥ 3.10; cross-platform; dependencies pinned in pyproject.toml; install via pip
+|C8 |If available, link to developer documentation/manual | https://github.com/ramsestein/RECAL/tree/main/docs
+|C9 |Support email for questions	| rmarrero@clinic.cat
 
 ## How it works
 
