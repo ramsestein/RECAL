@@ -1,0 +1,149 @@
+# RECAL validation — harmonisation specification (protocol v1.0, §3)
+#
+# Single source of truth for cohort rules, windows, variable mappings, units and
+# plausibility bounds across MIMIC-IV 3.1, NWICU 0.1.0 and INSPIRE 1.4.2.
+# Written from the data dictionaries (d_items, d_labitems, parameters.csv) only.
+# Frozen in Amendment A1 together with the final variable list (§3.4).
+
+version: 1.0
+
+cohort:
+  min_age: 18
+  index_stay: first_icu_stay_per_patient      # by ICU admission time
+  min_icu_los_hours: 24                        # prediction at 24 h
+  # MIMIC-IV and NWICU `icustays` also contain intermediate, step-down and ward units
+  # (e.g. "Neuro Intermediate", "Neuro Stepdown", "PACU"; NWICU "INPATIENT", "IMCU",
+  # "BOARDERS"). Only stays whose first_careunit is an adult ICU are eligible; the index
+  # stay is chosen AFTER this filter. INSPIRE ICU episodes (icuin_time) are ICU by definition.
+  icu_careunit_include_regex: '(?i)(intensive care|icu|ccu)'
+  icu_careunit_exclude_regex: '(?i)(intermediate|stepdown|picu|nicu|pacu)'
+  exclude_death_before_hours: 24               # implied by the LOS rule; enforced explicitly
+  # Outcome: ICU mortality = death during the index ICU stay. A death charted up to
+  # `death_tolerance_hours` after ICU discharge is counted (charting delay at time of death).
+  death_tolerance_hours: 6
+
+windows:                                       # hours relative to ICU admission
+  vitals: [0, 24]
+  labs: [-6, 24]                               # labs drawn shortly before ICU arrival count
+  weight: [-24, 24]
+
+aggregations:
+  vitals: [min, max, mean]
+  labs: [min, max]
+
+# Missing-rate rule for the final predictor list (protocol §3.3): a feature is kept only
+# if its missing rate is <= max_missing_rate in EVERY database. Applied by audit.py; the
+# resulting list is frozen in A1.
+max_missing_rate: 0.5
+
+databases:
+  mimic:
+    version: "MIMIC-IV 3.1"
+    root: mimic4
+    time: datetime
+  nwicu:
+    version: "NWICU 0.1.0"
+    root: nwicu/northwestern-icu-nwicu-database-0.1.0/data
+    time: datetime
+  inspire:
+    version: "INSPIRE 1.4.2"
+    root: inspire
+    time: relative_minutes                     # minutes from a per-patient reference
+
+# ---------------------------------------------------------------------------
+# Vital signs (ICU, 0–24 h). MIMIC/NWICU: chartevents itemids. INSPIRE: ward_vitals
+# item_name (ward_vitals covers ward and ICU; the ICU window selects ICU records).
+# MAP is DERIVED with the same rule in every database: MAP = (SBP + 2·DBP) / 3 from an
+# SBP and a DBP of the same modality (arterial or non-invasive) charted at the same time.
+# Charted MAP is not used, because NWICU has none and INSPIRE ward_vitals has no arterial
+# diastolic or mean pressure.
+# ---------------------------------------------------------------------------
+vitals:
+  hr:
+    units: bpm
+    bounds: [20, 250]
+    mimic: {items: [220045]}
+    nwicu: {items: [320045]}
+    inspire: {items: [hr]}
+  sbp:
+    units: mmHg
+    bounds: [40, 280]
+    mimic: {items: {art: [220050], nbp: [220179]}}
+    nwicu: {items: {art: [320050], nbp: [320179]}}
+    inspire: {items: {art: [art_sbp], nbp: [nibp_sbp]}}
+  dbp:
+    units: mmHg
+    bounds: [15, 180]
+    mimic: {items: {art: [220051], nbp: [220180]}}
+    nwicu: {items: {art: [320051], nbp: [320180]}}
+    inspire: {items: {nbp: [nibp_dbp]}}
+  map:
+    units: mmHg
+    bounds: [25, 220]
+    derived: "(sbp + 2*dbp)/3, same modality, same charttime"
+  rr:
+    units: breaths/min
+    bounds: [3, 70]
+    mimic: {items: [220210]}
+    nwicu: {items: [320210]}
+    inspire: {items: [rr]}
+  spo2:
+    units: "%"
+    bounds: [50, 100]
+    mimic: {items: [220277]}
+    nwicu: {items: [320277]}
+    inspire: {items: [spo2]}
+  temp:
+    units: "°C"
+    bounds: [30, 43]                            # applied after F→C conversion
+    mimic: {items: {c: [223762], f: [223761]}}
+    nwicu: {items: {f: [323761]}}
+    inspire: {items: {c: [bt]}}
+
+# ---------------------------------------------------------------------------
+# Laboratory (−6 h to 24 h). MIMIC/NWICU: labevents itemids. INSPIRE: labs item_name.
+# Notes recorded for the drift audit (not corrected, protocol §3.4):
+#   - bicarbonate: serum chemistry in MIMIC (Bicarbonate) and NWICU (Total CO2);
+#     arterial blood-gas HCO3 in INSPIRE.
+#   - pH: blood-gas pH without specimen restriction in MIMIC and NWICU (arterial or
+#     venous); arterial in INSPIRE.
+# ---------------------------------------------------------------------------
+labs:
+  creatinine:   {units: mg/dL,    bounds: [0.1, 25],   mimic: [50912], nwicu: [100002], inspire: [creatinine]}
+  bun:          {units: mg/dL,    bounds: [1, 300],    mimic: [51006], nwicu: [100004], inspire: [bun]}
+  sodium:       {units: mmol/L,   bounds: [100, 190],  mimic: [50983], nwicu: [100010], inspire: [sodium]}
+  potassium:    {units: mmol/L,   bounds: [1.5, 10],   mimic: [50971], nwicu: [100011], inspire: [potassium]}
+  glucose:      {units: mg/dL,    bounds: [10, 2000],  mimic: [50931], nwicu: [100001], inspire: [glucose]}
+  hemoglobin:   {units: g/dL,     bounds: [2, 25],     mimic: [51222], nwicu: [100007], inspire: [hb]}
+  wbc:          {units: 10^3/uL,  bounds: [0.05, 300], mimic: [51301, 51300], nwicu: [100016], inspire: [wbc]}
+  platelets:    {units: 10^3/uL,  bounds: [1, 2000],   mimic: [51265], nwicu: [100014], inspire: [platelet]}
+  bilirubin:    {units: mg/dL,    bounds: [0.05, 60],  mimic: [50885], nwicu: [100020], inspire: [total_bilirubin]}
+  albumin:      {units: g/dL,     bounds: [0.5, 7],    mimic: [50862], nwicu: [100021], inspire: [albumin]}
+  lactate:      {units: mmol/L,   bounds: [0.1, 30],   mimic: [50813], nwicu: [100031], inspire: [lacate, lactate]}   # "lacate" (sic) in INSPIRE
+  ph:           {units: pH,       bounds: [6.5, 8.0],  mimic: [50820], nwicu: [100339], inspire: [ph]}
+  bicarbonate:  {units: mmol/L,   bounds: [2, 60],     mimic: [50882], nwicu: [100013], inspire: [hco3]}
+  inr:          {units: ratio,    bounds: [0.5, 20],   mimic: [51237], nwicu: [100030], inspire: [ptinr]}
+
+# ---------------------------------------------------------------------------
+# Demographics
+# ---------------------------------------------------------------------------
+demographics:
+  age:    {units: years, mimic: "anchor_age + year(intime) - anchor_year", nwicu: "same as MIMIC", inspire: "operations.age"}
+  male:   {mimic: "patients.gender == 'M'", nwicu: "patients.gender == 'M'", inspire: "operations.sex == 'M'"}
+  weight:
+    units: kg
+    bounds: [25, 300]
+    mimic: {items: [226512], factor: 1.0}               # Admission Weight (Kg), chartevents, first value in window
+    nwicu: {items: [326531], factor: 0.028349523125}    # WEIGHT/SCALE in ounces → kg
+    inspire: "operations.weight (pre-operative)"
+
+# ---------------------------------------------------------------------------
+# Not harmonised, with reason (documented in A1)
+# ---------------------------------------------------------------------------
+excluded:
+  gcs: "Not charted in NWICU 0.1.0"
+  fio2: "Not charted in NWICU 0.1.0"
+  pao2_paco2: "No arterial PO2/PCO2 items in NWICU 0.1.0 d_labitems"
+  mechanical_ventilation: "No equivalent ventilation item in NWICU (procedureevents are orders, not device time)"
+  vasopressors: "NWICU 0.1.0 has no inputevents"
+  urine_output: "NWICU 0.1.0 has no outputevents"
