@@ -164,6 +164,7 @@ def cross_validate_adapt(
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
 
     oof_scores = np.full(n, np.nan, dtype=float)
+    fold_ids = np.full(n, -1, dtype=int)
     per_fold = []
     skipped = 0
 
@@ -191,6 +192,7 @@ def cross_validate_adapt(
             scores_test = aa.predict(pair_test)
 
         oof_scores[test_idx] = scores_test
+        fold_ids[test_idx] = fold_idx
 
         m_fold = _classification_metrics(y[test_idx], scores_test)
         per_fold.append({
@@ -238,4 +240,5 @@ def cross_validate_adapt(
         "mean_metrics": mean_metrics,
         "std_metrics":  std_metrics,
         "oof_scores":   oof_scores,
+        "fold_ids":     fold_ids,
     }

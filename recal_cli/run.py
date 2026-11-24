@@ -572,7 +572,7 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
             print("    WARNING: gap > 0.05 — consider regularisation / fewer sweep steps")
 
         oof_scores = cv_res["oof_scores"]
-        cv_serializable = {k: v for k, v in cv_res.items() if k != "oof_scores"}
+        cv_serializable = {k: v for k, v in cv_res.items() if k not in ("oof_scores", "fold_ids")}
         cv_serializable["oof_auroc_ci"] = list(cv_res["oof_auroc_ci"])
         out["cv"] = cv_serializable
     else:
@@ -609,6 +609,7 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
                     y_target=pair_filt.y_t,
                     source_model=model,
                     cv=eval_cfg.oracle_cv,
+                    fold_ids=cv_res["fold_ids"] if cv_res is not None else None,
                 )
                 print(f"  Oracle AUROC: {oracle_result['auroc']:.4f}  "
                       f"[{oracle_result['ci_lo']:.3f}, {oracle_result['ci_hi']:.3f}]")
@@ -639,10 +640,19 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
             )
             out["drift_decomp_in_sample"] = drift_decomp_in_sample
             if cv_res is not None:
+                from recal_cli.verdict import fold_mean_auroc
+                _f = cv_res["fold_ids"]
+                fm = {
+                    "raw": fold_mean_auroc(pair_filt.y_t, scores_raw, _f),
+                    "oof": fold_mean_auroc(pair_filt.y_t, cv_res["oof_scores"], _f),
+                    "oracle": (fold_mean_auroc(pair_filt.y_t, oracle_result["oof_scores"], _f)
+                               if oracle_result else None),
+                }
+                out["fold_mean_auroc"] = fm
                 drift_decomp = drift_decomposition(
-                    auroc_raw=m_raw["auroc"],
-                    auroc_adapted=cv_res["oof_metrics"]["auroc"],
-                    auroc_oracle=auroc_oracle,
+                    auroc_raw=fm["raw"],
+                    auroc_adapted=fm["oof"],
+                    auroc_oracle=fm["oracle"],
                     ci_raw=ci_raw,
                     ci_adapted=tuple(cv_res["oof_auroc_ci"]),
                     ci_oracle=ci_oracle,
@@ -772,14 +782,15 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
             slope_oof, citl_oof = calibration_slope_intercept(pair_filt.y_t[valid], oof_scores[valid])
             boot = bootstrap_recovery_ratio(
                 pair_filt.y_t, scores_raw, oof_scores, oracle_result["oof_scores"],
-                seed=cfg.overfitting_check.random_state,
+                seed=cfg.overfitting_check.random_state, fold_ids=cv_res["fold_ids"],
             )
+            fm = out["fold_mean_auroc"]
             verdict = decide(
                 n_events=int(pair_filt.y_t.sum()),
-                auroc_raw=m_raw["auroc"],
+                auroc_raw=fm["raw"],
                 auroc_in=m_adapted["auroc"],
-                auroc_oof=cv_res["oof_metrics"]["auroc"],
-                auroc_oracle=oracle_result["auroc"],
+                auroc_oof=fm["oof"],
+                auroc_oracle=fm["oracle"],
                 rr_ci=boot["ci"],
                 slope_oof=slope_oof,
             )

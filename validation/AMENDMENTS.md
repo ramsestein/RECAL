@@ -93,6 +93,17 @@ limitation. The outcome is **not** changed.
   receive the drift decomposition used by the in-sample fit; (iv) the drift decomposition
   failed silently with scikit-learn ≥ 1.9. Performance-only changes: pooled-kernel MMD²
   permutation test; memoised per-feature source models of the drift decomposition.
+- **Identity candidate in the Designer** (decided by the investigator before any run on
+  these databases): the Designer now also evaluates leaving the inputs untouched (no mask,
+  WOE, QT or alignment) by its own criterion, target AUROC on the design cohort, and keeps
+  the identity on ties. Reason: on randomly generated data of the cohorts' shape the
+  designed transformation could lower discrimination well below the raw model.
+- **Clarification of §5.1–5.2 (OOF AUROC).** AUROC_raw, AUROC_oof and AUROC_oracle are
+  computed as the **mean of per-fold AUROCs over one common stratified 5-fold partition**
+  (the oracle uses the wrapper's CV folds), and rr_CI resamples patients within folds.
+  Pooling OOF predictions across folds mixes models with fold-specific calibration and
+  alignment and distorts the ranking (on the synthetic example, pooled 0.761 vs fold-mean
+  0.837 for the same untouched model). AUROC_in remains the full-cohort in-sample AUROC.
 - Timing and integration were checked only on randomly generated data with the same
   shape as the cohorts (no PhysioNet data).
 - Experiment code: `validation/run_validation.py`, `baselines.py`, `metrics.py`. Seed

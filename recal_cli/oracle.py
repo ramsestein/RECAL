@@ -244,9 +244,14 @@ def fit_target_oracle(
     cv: int = 5,
     alpha: float = 0.05,
     random_state: int = 42,
+    fold_ids: np.ndarray | None = None,
 ) -> dict:
     """
     Entrena un oracle nativamente en el target via k-fold OOF y devuelve AUROC con CI.
+
+    If ``fold_ids`` is given (fold index per patient, as returned by cross_validate_adapt),
+    the oracle uses exactly that partition, so its per-fold AUROCs are comparable with the
+    wrapper's (v0.3.0).
 
     El oracle establece el techo de rendimiento alcanzable entrenando desde cero
     en el target. Es una herramienta de medición del gap irreducible, NO un
@@ -311,10 +316,17 @@ def fit_target_oracle(
         logger.warning(msg)
         warning = (warning + " " if warning else "") + msg
 
-    skf = StratifiedKFold(n_splits=effective_cv, shuffle=True, random_state=random_state)
     oof_scores = np.full(n, np.nan, dtype=float)
+    if fold_ids is not None and (np.asarray(fold_ids) >= 0).any():
+        fids = np.asarray(fold_ids)
+        splits = [(np.where((fids != k) & (fids >= 0))[0], np.where(fids == k)[0])
+                  for k in sorted(set(fids[fids >= 0].tolist()))]
+        effective_cv = len(splits)
+    else:
+        skf = StratifiedKFold(n_splits=effective_cv, shuffle=True, random_state=random_state)
+        splits = list(skf.split(X, y_target))
 
-    for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X, y_target)):
+    for fold_idx, (train_idx, test_idx) in enumerate(splits):
         if y_target[train_idx].sum() < 2 or y_target[test_idx].sum() < 1:
             logger.warning("Oracle fold %d: insufficient events, skip.", fold_idx)
             continue

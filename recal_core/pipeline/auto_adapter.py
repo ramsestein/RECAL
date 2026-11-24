@@ -182,7 +182,54 @@ class AutoAdapter:
             pca_k=pca_k,
             max_n_sweep=max_n_sweep,
         )
+        if pair is not None:
+            self._consider_identity(pair)
         return self._config
+
+    def _consider_identity(self, pair: CohortPair) -> None:
+        """Identity candidate (v0.3.0): compare, by target AUROC on the design cohort (the
+        Designer's own criterion), the designed input transformation against leaving the
+        inputs untouched (no mask, WOE, QT or alignment). Ties go to the identity. The
+        calibration decision is kept: it is monotone and does not change the AUROC."""
+        import copy
+
+        from sklearn.metrics import roc_auc_score
+
+        from recal_core.designer_audit import AlternativeChoice, DesignerDecision
+
+        cfg = self._config
+        y = pair.y_t
+        if len(np.unique(y)) < 2:
+            return
+        trial = copy.copy(self)
+        trial._config = copy.deepcopy(cfg)
+        trial._config.apply_calibration = False
+        trial.fit(pair)
+        au_designed = float(roc_auc_score(y, trial.predict(pair)))
+        au_identity = float(roc_auc_score(y, self._model.predict_proba(pair.X_t)))
+        use_identity = au_identity >= au_designed
+        reason = (f"identity AUROC={au_identity:.4f} vs designed AUROC={au_designed:.4f} on the "
+                  f"design cohort → {'identity (inputs untouched)' if use_identity else 'designed transformation'}")
+        if use_identity:
+            cfg.apply_mask, cfg.mask_features, cfg.mask_n = False, [], 0
+            cfg.apply_woe, cfg.woe_features = False, []
+            cfg.apply_quantile, cfg.quantile_features = False, []
+            cfg.apply_pca_coral = False
+        cfg.rationale["identity_candidate"] = reason
+        if cfg.audit is not None:
+            cfg.audit.record(DesignerDecision(
+                step="identity_candidate",
+                criterion="target AUROC on the design cohort (ties → identity)",
+                alternatives=[
+                    AlternativeChoice(choice="designed", metric_name="auroc", metric_value=au_designed,
+                                      selected=not use_identity),
+                    AlternativeChoice(choice="identity", metric_name="auroc", metric_value=au_identity,
+                                      selected=use_identity),
+                ],
+                final_choice="identity" if use_identity else "designed",
+                justification=reason,
+            ))
+        logger.info("  [identity_candidate] %s", reason)
 
     def fit(self, pair: CohortPair) -> AutoAdapter:
         """

@@ -96,3 +96,16 @@ def test_bootstrap_ratio_ci_contains_point_estimate():
     b = bootstrap_recovery_ratio(y, raw, oof, oracle, n_boot=300, seed=0)
     lo, hi = b["ci"]
     assert lo < rr < hi
+
+
+def test_fold_mean_auroc_ignores_cross_fold_calibration():
+    from recal_cli.verdict import fold_mean_auroc
+    rng = np.random.default_rng(3)
+    n = 400
+    y = rng.binomial(1, 0.4, n)
+    s = y + rng.normal(0, 1, n)
+    f = np.repeat(np.arange(4), n // 4)
+    shifted = s + f * 5.0  # fold-specific monotone shift: within-fold ranking unchanged
+    from sklearn.metrics import roc_auc_score
+    assert fold_mean_auroc(y, shifted, f) == pytest.approx(fold_mean_auroc(y, s, f))
+    assert roc_auc_score(y, shifted) != pytest.approx(roc_auc_score(y, s), abs=1e-3)

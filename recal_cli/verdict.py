@@ -4,14 +4,16 @@ recal_cli.verdict
 Deploy-or-retrain verdict (decision rules V1 and V2 of the pre-registered validation
 protocol, validation/PREREGISTRATION.md §5).
 
-All quantities are computed from out-of-fold (OOF) predictions on the target cohort:
+All quantities are computed from out-of-fold (OOF) predictions on the target cohort, as
+means of per-fold AUROCs over one common stratified partition (raw model, wrapper and
+oracle evaluated on the same folds):
 
     optimism_gap = AUROC_in − AUROC_oof
     total_gap    = AUROC_oracle − AUROC_raw          (oracle: target-trained, OOF)
     rr           = (AUROC_oof − AUROC_raw) / total_gap
 
-rr_CI is a percentile bootstrap (patients resampled with replacement, stratified by
-outcome, together with their raw, OOF and oracle-OOF scores). It does NOT include the
+rr_CI is a percentile bootstrap (patients resampled with replacement within folds,
+stratified by outcome, together with their raw, OOF and oracle-OOF scores). It does NOT include the
 variability of refitting the wrapper.
 
 The thresholds below are PROVISIONAL HEURISTICS. They are not derived from data; their
@@ -76,6 +78,21 @@ def calibration_slope_intercept(y: np.ndarray, p: np.ndarray) -> tuple[float, fl
     return slope, float(a)
 
 
+def fold_mean_auroc(y: np.ndarray, s: np.ndarray, fold_ids: np.ndarray | None) -> float:
+    """Mean of per-fold AUROCs (folds with a single class are skipped). Pooling OOF
+    predictions across folds mixes models with fold-specific calibration and alignment,
+    which distorts the ranking; the fold mean avoids that (v0.3.0, Amendment A1)."""
+    y = np.asarray(y, dtype=int)
+    if fold_ids is None:
+        return float(roc_auc_score(y, s))
+    vals = []
+    for k in np.unique(fold_ids[fold_ids >= 0]):
+        m = (fold_ids == k) & ~np.isnan(s)
+        if len(np.unique(y[m])) == 2:
+            vals.append(roc_auc_score(y[m], s[m]))
+    return float(np.mean(vals)) if vals else float("nan")
+
+
 def bootstrap_recovery_ratio(
     y: np.ndarray,
     scores_raw: np.ndarray,
@@ -84,23 +101,28 @@ def bootstrap_recovery_ratio(
     n_boot: int = 1000,
     alpha: float = 0.05,
     seed: int = 0,
+    fold_ids: np.ndarray | None = None,
 ) -> dict:
     """Percentile bootstrap CI of the recovery ratio, keeping the correlation between the
-    three AUROCs. Resamples with total_gap ≤ 0 have no defined ratio; they are excluded
-    from the percentiles and their share is reported."""
+    three AUROCs. With ``fold_ids`` the three AUROCs are fold means and patients are
+    resampled within folds (stratified by outcome). Resamples with total_gap ≤ 0 have no
+    defined ratio; they are excluded from the percentiles and their share is reported."""
     y = np.asarray(y, dtype=int)
     ok = ~(np.isnan(scores_raw) | np.isnan(scores_oof) | np.isnan(scores_oracle_oof))
     y, r, o, c = y[ok], scores_raw[ok], scores_oof[ok], scores_oracle_oof[ok]
-    pos, neg = np.where(y == 1)[0], np.where(y == 0)[0]
+    f = np.zeros(len(y), dtype=int) if fold_ids is None else np.asarray(fold_ids)[ok]
+    strata = [np.where((f == k) & (y == v))[0] for k in np.unique(f) for v in (0, 1)]
+    strata = [st for st in strata if len(st)]
     rng = np.random.default_rng(seed)
     ratios, undefined = [], 0
     for _ in range(n_boot):
-        idx = np.concatenate([rng.choice(pos, len(pos)), rng.choice(neg, len(neg))])
-        a_r = roc_auc_score(y[idx], r[idx])
-        a_o = roc_auc_score(y[idx], o[idx])
-        a_c = roc_auc_score(y[idx], c[idx])
+        idx = np.concatenate([rng.choice(st, len(st)) for st in strata])
+        fb = None if fold_ids is None else f[idx]
+        a_r = fold_mean_auroc(y[idx], r[idx], fb)
+        a_o = fold_mean_auroc(y[idx], o[idx], fb)
+        a_c = fold_mean_auroc(y[idx], c[idx], fb)
         tot = a_c - a_r
-        if tot <= 0:
+        if not np.isfinite(tot) or tot <= 0:
             undefined += 1
             continue
         ratios.append((a_o - a_r) / tot)

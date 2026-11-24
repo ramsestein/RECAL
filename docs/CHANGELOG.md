@@ -23,6 +23,10 @@ pre-registered validation protocol (validation/PREREGISTRATION.md §4.5).
 - `requirements-lock.txt` and the `validation` optional dependency group.
 
 ### Changed
+- **Designer identity candidate**: leaving the inputs untouched is compared with the
+  designed transformation by target AUROC on the design cohort (ties → identity).
+- **OOF AUROCs are fold means** over one common partition (wrapper, raw model and oracle on
+  the same folds); the recovery-ratio bootstrap resamples within folds.
 - The gap decomposition and recovery ratio are computed from out-of-fold predictions;
   the in-sample decomposition is still reported as `drift_decomp_in_sample`.
 - MMD² permutation test computes the pooled kernel once (identical statistic, ~10× faster
