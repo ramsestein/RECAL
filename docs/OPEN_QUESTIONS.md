@@ -27,7 +27,7 @@ in `recal/calibration/stratified_platt.py`. Use chi2 with k-1 degrees of freedom
 ## OQ-2: PCACoralAligner double fit in `_get_aligned_scores()`
 
 **File:** `recal_core/pipeline/auto_adapter.py::_get_aligned_scores()`  
-**Status:** Minor inefficiency, not a bug (deterministic result)
+**Status:** Resolved in v0.3.0 — it WAS a bug when the predicted batch differs from the fitting cohort (transductive alignment); see CHANGELOG 0.3.0
 
 **Description:**  
 `_get_aligned_scores()` is called both in `fit()` (for calibration data) and in

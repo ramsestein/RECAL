@@ -30,6 +30,14 @@ pre-registered validation protocol (validation/PREREGISTRATION.md §4.5).
 - Version unified to 0.3.0 (package, `recal`, `recal_core`, report footer).
 
 ### Fixed
+- **Inductive prediction.** `AutoAdapter.predict()` re-fitted the CORAL/PCA-CORAL aligner on
+  whatever batch it was asked to predict (transductive), so predictions depended on the
+  batch, single-patient inference was not possible, and each CV test fold was aligned
+  with its own statistics. The aligner is now fitted once in `fit()` and only applied
+  afterwards, the corrigible-feature set is fixed at fit time, and `predict_array()` /
+  `AdaptedModelWrapper.predict_proba()` predict new patients without refitting (the
+  wrapper previously raised `NotImplementedError`). On the synthetic example the OOF
+  AUROC changes from 0.918 to 0.913.
 - `recal` console entry point now points to `recal_cli.run:main` (was a missing module).
 - Placeholder author e-mail in `pyproject.toml`.
 

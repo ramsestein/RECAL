@@ -97,6 +97,12 @@ class AutoAdapter:
         self._fitted_qt: QuantileTransformAligner | None = None
         self._fitted_calibrator = None
         self._fitted = False
+        # Inductive state fixed at fit time (v0.3.0): the aligner is fitted once on the
+        # fitting cohort and only applied afterwards; the corrigible-feature set is the
+        # fitting cohort's, so prediction never depends on the batch being predicted.
+        self._aligner_fitted = False
+        self._idx_corr_fit: list[int] | None = None
+        self._pair_ref = None
 
         # Trazabilidad
         self._feature_log: dict = {}   # {feature_name: dict con stats pre/post}
@@ -238,9 +244,14 @@ class AutoAdapter:
         else:
             self._fitted_aligner = None
 
+        # Fit the aligner ONCE on the fitting cohort (inductive); predict() reuses it.
+        self._aligner_fitted = False
+        self._idx_corr_fit = list(working_pair.idx_corr)
+        scores_fit = self._get_aligned_scores(working_pair, fit_aligner=True)
+
         # Paso 5: Calibración (fit en target usando LOO)
         if config.apply_calibration:
-            scores_target = self._get_aligned_scores(working_pair)
+            scores_target = scores_fit
             self._fitted_calibrator = self._fit_calibrator(
                 scores_target, pair.y_t, config
             )
@@ -248,6 +259,7 @@ class AutoAdapter:
             self._fitted_calibrator = None
 
         self._working_pair_ref = working_pair
+        self._pair_ref = pair
         self._fitted = True
         logger.info("  AutoAdapter fit complete.")
 
@@ -287,6 +299,18 @@ class AutoAdapter:
 
         return scores
 
+    def predict_array(self, X_new: np.ndarray) -> np.ndarray:
+        """Predict new target-domain patients (rows in schema order) with the components
+        fitted in fit(). Works for any batch size, including a single patient."""
+        if not self._fitted or self._pair_ref is None:
+            raise RuntimeError("Llamar a .fit() antes de .predict_array()")
+        ref = self._pair_ref
+        new = object.__new__(CohortPair)
+        new.__dict__.update(ref.__dict__)
+        new._X_t = np.asarray(X_new, dtype=float)
+        new._y_t = np.zeros(len(new._X_t), dtype=int)
+        return self.predict(new)
+
     def auto_adapt(self, pair: CohortPair) -> np.ndarray:
         """
         Ejecuta profile → design → fit → predict en una sola llamada.
@@ -308,16 +332,19 @@ class AutoAdapter:
 
     # ── Internals: pipeline steps ─────────────────────────────────────────────
 
-    def _get_aligned_scores(self, pair: CohortPair) -> np.ndarray:
+    def _get_aligned_scores(self, pair: CohortPair, fit_aligner: bool = False) -> np.ndarray:
         """
         Aplica WOE + QT + PCA-CORAL al par y devuelve las predicciones del modelo.
+
+        The aligner is fitted only when ``fit_aligner`` is True (called from fit());
+        otherwise the aligner fitted on the fitting cohort is applied unchanged.
         """
         config = self._config
         X_t = pair.X_t_imp.copy()
         X_s = pair.X_s_imp.copy()
 
-        # Índices de features corregibles
-        idx_corr = pair.idx_corr
+        # Índices de features corregibles (fixed at fit time)
+        idx_corr = self._idx_corr_fit if self._idx_corr_fit is not None else pair.idx_corr
         nan_mask_t = pair.nan_mask_t
 
         # Aplicar WOE en target (usando el codificador ajustado en source)
@@ -350,7 +377,9 @@ class AutoAdapter:
             X_s_corr = np.nan_to_num(X_s[:, idx_corr], nan=0.0)
             X_t_corr = np.nan_to_num(X_t[:, idx_corr], nan=0.0)
             nan_mask_corr = nan_mask_t[:, idx_corr]
-            self._fitted_aligner.fit(X_s_corr, X_t_corr)
+            if fit_aligner or not self._aligner_fitted:
+                self._fitted_aligner.fit(X_s_corr, X_t_corr)
+                self._aligner_fitted = True
             X_t_corr_aligned = self._fitted_aligner.transform(X_t_corr, nan_mask=nan_mask_corr)
             X_t[:, idx_corr] = X_t_corr_aligned
 
@@ -585,7 +614,6 @@ class AutoAdapter:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 try:
-                    self._fitted_aligner.fit(X_s_corr, X_t_corr)
                     X_t_aligned = self._fitted_aligner.transform(X_t_corr, nan_mask=nan_mask_corr)
                     X_t_post_imp[:, idx_corr] = X_t_aligned
                 except Exception:

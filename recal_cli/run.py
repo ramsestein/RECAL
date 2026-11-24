@@ -131,14 +131,13 @@ class AdaptedModelWrapper:
         self.metadata = metadata
 
     def predict_proba(self, X) -> np.ndarray:
-        """X: DataFrame o ndarray (n, p) con columnas en orden de schema."""
-        # No podemos correr la pipeline sin un source... el wrapper solo
-        # almacena un snapshot del aligner ya fitted para inspección/auditoría.
-        raise NotImplementedError(
-            "Para predict en nuevos datos del target, re-ejecutar el pipeline "
-            "con CohortPair (source + nuevo target). Este wrapper guarda "
-            "los componentes fitted para auditoría."
-        )
+        """X: DataFrame (columns by name) or ndarray (n, p) in schema order.
+
+        Applies the components fitted on the target cohort (mask, WOE, QT, aligner,
+        calibrator) without refitting anything, so any batch size works."""
+        if hasattr(X, "loc"):
+            X = X.reindex(columns=self.schema).to_numpy(dtype=float)
+        return self.auto_adapter.predict_array(np.asarray(X, dtype=float))
 
     def save(self, path: str | Path) -> None:
         path = Path(path)
