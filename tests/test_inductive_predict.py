@@ -40,3 +40,14 @@ def test_prediction_is_batch_independent():
     # predicting a different batch must not change earlier predictions
     _ = aa.predict_array(X_new[::-1])
     np.testing.assert_allclose(aa.predict_array(X_new)[:5], batch[:5], rtol=1e-6, atol=1e-9)
+
+
+def test_quantile_aligner_matches_source_marginals():
+    from recal.align.quantile_transform import QuantileTransformAligner
+    rng = np.random.default_rng(0)
+    Xs = rng.normal(0, 1, (2000, 2))
+    Xt = rng.normal(3, 2, (500, 2))
+    qt = QuantileTransformAligner().fit(Xs, Xt)
+    Xa = qt.transform(rng.normal(3, 2, (500, 2)))
+    assert abs(Xa.mean()) < 0.15
+    assert abs(Xa.std() - 1) < 0.15

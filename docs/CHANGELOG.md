@@ -38,6 +38,11 @@ pre-registered validation protocol (validation/PREREGISTRATION.md §4.5).
   `AdaptedModelWrapper.predict_proba()` predict new patients without refitting (the
   wrapper previously raised `NotImplementedError`). On the synthetic example the OOF
   AUROC changes from 0.918 to 0.913.
+- **Quantile-transform aligner.** `QuantileTransformAligner` fitted only the source
+  transformer and applied it forward and then inverse, which is the identity up to
+  clipping to the source range. It now fits one transformer per domain in `fit()` and maps
+  x_t → F_t(x_t) → F_s⁻¹(·). (Not active in the synthetic example: the Designer selected
+  QT for 0 features there.)
 - `recal` console entry point now points to `recal_cli.run:main` (was a missing module).
 - Placeholder author e-mail in `pyproject.toml`.
 

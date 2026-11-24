@@ -110,8 +110,8 @@ class QuantileTransformAligner(Aligner):
         X_source : np.ndarray (n_s, q)
             Feature matrix source.  Debe estar imputada (sin NaN).
         X_target : np.ndarray (n_t, q)
-            Feature matrix target (no se usa para el fit; solo para validar
-            dimensiones).
+            Feature matrix target (fitting cohort); its marginal CDFs are estimated
+            here and reused by transform().
 
         Returns
         -------
@@ -124,25 +124,30 @@ class QuantileTransformAligner(Aligner):
                 f"{X_target.shape[1]}."
             )
 
-        n_q = self.n_quantiles if self.n_quantiles is not None else min(1000, n_s)
+        n_t = X_target.shape[0]
 
-        self._transformers = []
-        for j in range(q):
-            qt = QuantileTransformer(
+        def _qt(n):
+            return QuantileTransformer(
                 output_distribution=self.output_distribution,
-                n_quantiles=n_q,
+                n_quantiles=self.n_quantiles if self.n_quantiles is not None else min(1000, n),
                 subsample=self.subsample,
                 random_state=self.random_state,
             )
-            qt.fit(X_source[:, j : j + 1])
-            self._transformers.append(qt)
+
+        # One transformer per feature for EACH domain: x_t → F_t(x_t) → F_s⁻¹(·).
+        # (Before v0.3.0 only the source transformer was fitted and applied forward and
+        # backward, which is the identity up to clipping to the source range.)
+        self._transformers = []
+        self._transformers_t = []
+        for j in range(q):
+            self._transformers.append(_qt(n_s).fit(X_source[:, j : j + 1]))
+            self._transformers_t.append(_qt(n_t).fit(X_target[:, j : j + 1]))
 
         self._q = q
         self._fitted = True
         logger.debug(
-            "QuantileTransformAligner: ajustado sobre %d features, "
-            "n_quantiles=%d, output='%s'.",
-            q, n_q, self.output_distribution,
+            "QuantileTransformAligner: ajustado sobre %d features (n_s=%d, n_t=%d), output='%s'.",
+            q, n_s, n_t, self.output_distribution,
         )
         return self
 
@@ -157,8 +162,8 @@ class QuantileTransformAligner(Aligner):
         Transforma X_target mapeando cada feature a la distribución source.
 
         El proceso es:
-        1. Mapear target_j → espacio de referencia con ``transform``.
-        2. Mapear de vuelta a escala source con ``inverse_transform``.
+        1. Mapear target_j → espacio de referencia con la CDF target ajustada en fit().
+        2. Mapear a escala source con la inversa de la CDF source.
         3. Restaurar NaN en las posiciones originales.
 
         Parameters
@@ -184,9 +189,9 @@ class QuantileTransformAligner(Aligner):
             )
 
         X_out = X_target.copy()
-        for j, qt in enumerate(self._transformers):
+        for j, (qt_s, qt_t) in enumerate(zip(self._transformers, self._transformers_t)):
             col = X_target[:, j : j + 1]
-            # Mapear a referencia (uniform / normal) y volver a escala source
-            X_out[:, j] = qt.inverse_transform(qt.transform(col)).ravel()
+            # target CDF (fitted on the fitting cohort) → source inverse CDF
+            X_out[:, j] = qt_s.inverse_transform(qt_t.transform(col)).ravel()
 
         return _restore_nan(X_out, nan_mask)

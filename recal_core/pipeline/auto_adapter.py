@@ -608,7 +608,6 @@ class AutoAdapter:
         X_t_post_imp = np.nan_to_num(X_t_post_imp, nan=0.0)
 
         if config.apply_pca_coral and self._fitted_aligner is not None:
-            X_s_corr = np.nan_to_num(X_s[:, idx_corr], nan=0.0)
             X_t_corr = np.nan_to_num(X_t_post_imp[:, idx_corr], nan=0.0)
             nan_mask_corr = nan_mask_t[:, idx_corr]
             with warnings.catch_warnings():
