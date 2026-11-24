@@ -11,7 +11,7 @@ Each entry: number, date, whether it was made before or after any result of the 
 
 ## A1 — Data and software freeze
 
-**Status:** in effect from tag `v0.3.0` (the commit the tag points to). No source model
+**Status:** in effect from tag `v0.3.0` → commit `79d041500d95b0bce6e1b2a8ab8abd15501f168c`. No source model
 had been trained on these databases before it.
 
 ### A1.1 Databases (protocol §2)
