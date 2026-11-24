@@ -50,6 +50,20 @@ def _csv(path: Path) -> str:
     return f"read_csv('{path.as_posix()}', header=true, all_varchar=true)"
 
 
+PREFILTERED: Path | None = None   # set by --prefiltered (see prefilter_gz.py)
+
+
+def _events(root: Path, rel: str, db: str, table: str) -> str:
+    """Event table source: the gzip CSV, or its itemid-prefiltered parquet parts (same columns)."""
+    if PREFILTERED is not None:
+        parts = PREFILTERED / f"{db}_{table}"
+        state = json.loads((parts / "_state.json").read_text())
+        if not state.get("done"):
+            raise RuntimeError(f"prefilter of {db}/{table} is not complete")
+        return f"read_parquet('{(parts / 'part_*.parquet').as_posix()}')"
+    return _csv(root / rel)
+
+
 def _log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
@@ -191,7 +205,7 @@ def events_mimic_like(con, root: Path, db: str, out: Path) -> None:
         CREATE OR REPLACE TABLE chart_raw AS
         SELECT TRY_CAST(stay_id AS BIGINT) AS key, itemid AS item,
                TRY_CAST(charttime AS TIMESTAMP) AS t, TRY_CAST(valuenum AS DOUBLE) AS v
-        FROM {_csv(root / lay['icu'] / 'chartevents.csv.gz')}
+        FROM {_events(root, lay['icu'] + '/chartevents.csv.gz', db, 'chartevents')}
         WHERE itemid IN ({v_items},{w_items})
           AND TRY_CAST(stay_id AS BIGINT) IN (SELECT CAST(key AS BIGINT) FROM cohort)
     """)
@@ -224,7 +238,7 @@ def events_mimic_like(con, root: Path, db: str, out: Path) -> None:
         FROM (
             SELECT subject_id, itemid AS item, TRY_CAST(charttime AS TIMESTAMP) AS t,
                    TRY_CAST(valuenum AS DOUBLE) AS v
-            FROM {_csv(root / lay['hosp'] / 'labevents.csv.gz')}
+            FROM {_events(root, lay['hosp'] + '/labevents.csv.gz', db, 'labevents')}
             WHERE itemid IN ({l_items})
               AND subject_id IN (SELECT subject_id FROM cohort)
         ) l
@@ -410,7 +424,11 @@ def main(argv=None) -> None:
     ap.add_argument("--db", required=True, choices=["mimic", "nwicu", "inspire"])
     ap.add_argument("--memory-limit", default="2GB")
     ap.add_argument("--threads", type=int, default=2)
+    ap.add_argument("--prefiltered", action="store_true",
+                    help="read chartevents/labevents from <out>/prefiltered (prefilter_gz.py)")
     args = ap.parse_args(argv)
+    global PREFILTERED
+    PREFILTERED = (args.out / "prefiltered") if args.prefiltered else None
 
     args.out.mkdir(parents=True, exist_ok=True)
     root = args.data_root / SPEC["databases"][args.db]["root"]
