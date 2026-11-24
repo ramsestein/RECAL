@@ -79,6 +79,7 @@ def main(argv=None) -> None:
     t0 = time.time()
     while time.time() - t0 < args.budget_s:
         buf = f.read(BLOCK)
+        at_eof = len(buf) < BLOCK
         if not buf:
             state["done"] = True
             break
@@ -87,7 +88,7 @@ def main(argv=None) -> None:
             state["header"] = buf[:nl].decode().strip().split(",")
             state["pos"] += nl + 1
             buf = buf[nl + 1:]
-        if len(buf) < BLOCK and not buf.endswith(b"\n"):
+        if at_eof and not buf.endswith(b"\n"):
             buf += b"\n"  # last line of the file without a trailing newline
         # cut at the last newline that is not inside a quoted field (quoted values may
         # contain newlines); every block starts at a record boundary, so quote parity holds
