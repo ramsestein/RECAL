@@ -1,4 +1,4 @@
-# RECAL v0.3.0 environment lock (validation protocol §4.5). Python 3.13, Linux x86_64.
+# RECAL v0.3.0 environment lock (validation protocol §4.5). Generated on Python 3.13 (Linux x86_64); use Python 3.13.
 # Install: pip install -r requirements-lock.txt && pip install --no-deps .
 annotated-doc==0.0.7
 annotated-types==0.8.0
@@ -7,7 +7,9 @@ contourpy==1.4.0
 cycler==0.12.1
 duckdb==2.0.1
 fonttools==4.68.0
+formulaic==1.2.2
 indexed_gzip==1.10.3
+interface_meta==2.0.1
 joblib==1.6.0
 kiwisolver==1.5.1
 markdown-it-py==4.3.0
@@ -15,9 +17,10 @@ matplotlib==3.11.2
 mdurl==0.1.2
 narwhals==2.29.0
 numpy==2.5.5
-nvidia-nccl-cu13==2.32.6
+nvidia-nccl-cu13==2.32.6 ; sys_platform == "linux"
 packaging==26.4
 pandas==3.1.1
+patsy==1.0.3
 pillow==13.0.0
 POT==0.9.7.post1
 pyarrow==26.0.1
@@ -34,10 +37,12 @@ shap==0.54.1
 shellingham==1.5.4
 skada==0.6.0
 slicer==0.0.8
+statsmodels==0.15.0
 threadpoolctl==3.8.0
 tqdm==4.70.1
 typer==0.29.2
 typing-inspection==0.4.5
 typing_extensions==4.16.0
 tzdata==2026.6
+wrapt==2.6.0.dev1
 xgboost==3.4.1

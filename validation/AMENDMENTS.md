@@ -11,8 +11,8 @@ Each entry: number, date, whether it was made before or after any result of the 
 
 ## A1 — Data and software freeze
 
-**Status:** DRAFT. A1 takes effect when committed together with the `v0.3.0` tag; the tag's
-commit hash is then added below. No source model is trained before that.
+**Status:** in effect from tag `v0.3.0` (the commit the tag points to). No source model
+had been trained on these databases before it.
 
 ### A1.1 Databases (protocol §2)
 
@@ -83,12 +83,22 @@ limitation. The outcome is **not** changed.
 
 ### A1.6 Software
 
-- RECAL **v0.3.0** (branch `release/v0.3.0`, commit `61d90ed`; tag pending), implementing
+- RECAL **v0.3.0** (tag `v0.3.0`), implementing
   §4.5 items 1–4: OOF-based gaps and recovery ratio, percentile-bootstrap rr CI,
   `recal_cli/verdict.py` (rules V1/V2 of §5), working `recal` entry point.
-- One performance change made before A1: the MMD² permutation test reuses the pooled
-  kernel (identical statistic and random stream).
-- Environment lock: `requirements-lock.txt` (Python 3.13, Linux x86_64).
-- Harmonisation code: branch `validation/harmonisation` (commit at A1).
+- Corrections to RECAL found while preparing the experiment, all made before A1 and before
+  any run on these databases (details in `docs/CHANGELOG.md`, 0.3.0): (i) the aligner was
+  re-fitted on every predicted batch (transductive); it is now fitted once on the target
+  cohort; (ii) the quantile-transform aligner was the identity; (iii) the CV folds did not
+  receive the drift decomposition used by the in-sample fit; (iv) the drift decomposition
+  failed silently with scikit-learn ≥ 1.9. Performance-only changes: pooled-kernel MMD²
+  permutation test; memoised per-feature source models of the drift decomposition.
+- Timing and integration were checked only on randomly generated data with the same
+  shape as the cohorts (no PhysioNet data).
+- Experiment code: `validation/run_validation.py`, `baselines.py`, `metrics.py`. Seed
+  scheme: `SeedSequence(20261124, spawn_key=key)`, written to `<out>/seeds.json`.
+- RECAL's source cohort in each run is the full source development set (80 % split).
+- Environment lock: `requirements-lock.txt` (Python 3.13).
+- Harmonisation code: `validation/harmonisation/` at tag `v0.3.0`.
 - **Baseline B7** uses **SKADA 0.6.0** (installable in the locked environment; ADAPT not
   needed).

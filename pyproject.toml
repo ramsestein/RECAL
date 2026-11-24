@@ -43,7 +43,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4", "ruff>=0.4", "black>=24.0", "mypy>=1.8"]
-validation = ["skada>=0.6", "duckdb>=1.0", "indexed_gzip>=1.8"]
+validation = ["skada>=0.6", "duckdb>=1.0", "indexed_gzip>=1.8", "statsmodels>=0.14"]
 
 [project.scripts]
 recal = "recal_cli.run:main"

@@ -43,6 +43,14 @@ pre-registered validation protocol (validation/PREREGISTRATION.md §4.5).
   clipping to the source range. It now fits one transformer per domain in `fit()` and maps
   x_t → F_t(x_t) → F_s⁻¹(·). (Not active in the synthetic example: the Designer selected
   QT for 0 features there.)
+- **CV evaluated a different pipeline than the deployed one.** The in-sample fit used the
+  per-feature drift decomposition (drift types, SHAP, L_base) but `cross_validate_adapt`
+  received none, so the optimism gap compared two different Designer paths. The drift
+  decomposition is now recomputed on each fold's training target (`drift_fn`).
+- **Drift decomposition silently failed on scikit-learn ≥ 1.9** (`LassoCV(n_alphas=…)` was
+  removed), labelling every continuous feature `TRAIN_ERROR_LASSO`. Version-robust now.
+  The per-feature source models are memoised (optionally on disk via
+  `RECAL_DRIFT_CACHE_DIR`), since they depend only on the source cohort.
 - `recal` console entry point now points to `recal_cli.run:main` (was a missing module).
 - Placeholder author e-mail in `pyproject.toml`.
 

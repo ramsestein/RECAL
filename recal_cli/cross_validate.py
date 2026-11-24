@@ -117,6 +117,7 @@ def cross_validate_adapt(
     apply_qt_override: bool | None = None,
     random_state: int = 42,
     verbose: bool = True,
+    drift_fn=None,
 ) -> dict:
     """
     Stratified k-fold CV honesto.
@@ -132,6 +133,11 @@ def cross_validate_adapt(
         Hiperparámetros del sweep del Designer.
     apply_qt_override : bool, optional
         Si se pasa, fuerza apply_quantile en el config tras design.
+    drift_fn : callable(CohortPair) -> dict, optional
+        Recomputes the per-feature drift decomposition (drift_type_dict, shap_dict,
+        lbase_dict) on each fold's TRAINING target, so that the OOF estimate evaluates the
+        same pipeline as the in-sample fit (v0.3.0). If None, the dicts passed as
+        arguments are used in every fold.
     random_state : int
     verbose : bool
 
@@ -172,13 +178,9 @@ def cross_validate_adapt(
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            aa = AutoAdapter(
-                model=model,
-                schema=schema,
-                drift_type_dict=drift_type_dict,
-                shap_dict=shap_dict,
-                lbase_dict=lbase_dict,
-            )
+            fold_drift = drift_fn(pair_train) if drift_fn is not None else {
+                "drift_type_dict": drift_type_dict, "shap_dict": shap_dict, "lbase_dict": lbase_dict}
+            aa = AutoAdapter(model=model, schema=schema, **fold_drift)
             aa.profile(pair_train)
             cfg = aa.design(pair_train, pca_k=pca_k, max_n_sweep=max_n_sweep)
             if apply_qt_override is not None:

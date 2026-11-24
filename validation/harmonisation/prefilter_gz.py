@@ -26,13 +26,12 @@ import json
 import time
 from pathlib import Path
 
+import extract as ex
 import indexed_gzip as igz
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
-
-import extract as ex
 
 TABLE_PATH = {
     ("mimic", "chartevents"): "icu/chartevents.csv.gz",

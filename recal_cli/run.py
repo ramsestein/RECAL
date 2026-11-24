@@ -12,6 +12,8 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import logging
 import sys
@@ -532,7 +534,19 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
     # 5. Honest cross-validation
     if run_cv and cfg.overfitting_check.enabled and cfg.overfitting_check.method == "kfold":
         print(f"\n[5/6] Honest CV k={cfg.overfitting_check.n_splits}…")
+        def _fold_drift(pair_train):
+            # Same drift-decomposition step as the in-sample fit, on the fold's training
+            # target only (the cached drift_csv, if any, was computed on the whole cohort).
+            from recal_cli.drift_compute import compute_drift_decomposition
+            with contextlib.redirect_stdout(io.StringIO()):
+                r = compute_drift_decomposition(X_s=pair_train.X_s, X_t=pair_train.X_t,
+                                                schema=schema, model=model, cache_path=None,
+                                                verbose=False)
+            return {"drift_type_dict": r["drift_type_dict"], "shap_dict": r["shap_dict"],
+                    "lbase_dict": r["lbase_dict"]}
+
         cv_res = cross_validate_adapt(
+            drift_fn=_fold_drift if drift_kwargs else None,
             pair=pair_filt,
             model=model,
             schema=schema,

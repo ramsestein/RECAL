@@ -100,6 +100,19 @@ def _compute_rec(after, before, drop):
 
 
 # ── SHAP importance (gain normalizado del booster XGBoost) ───────────────────
+_SOURCE_CACHE: dict = {}
+_SOURCE_KEY: dict = {}
+
+
+def _lasso_cv():
+    """LassoCV with a 15-value alpha path on any scikit-learn version
+    (`n_alphas` was removed in 1.9; an integer `alphas` is accepted from 1.7)."""
+    import inspect
+    if "n_alphas" in inspect.signature(LassoCV.__init__).parameters:
+        return LassoCV(cv=3, n_alphas=15, max_iter=3000, n_jobs=1, random_state=SEED)
+    return LassoCV(cv=3, alphas=15, max_iter=3000, n_jobs=1, random_state=SEED)
+
+
 def _shap_importance_from_model(model, schema: list[str]) -> dict[str, float]:
     """
     Devuelve dict {feature: gain_normalizado}. Soporta XGBoostWrapper, booster
@@ -146,6 +159,102 @@ def _shap_importance_from_model(model, schema: list[str]) -> dict[str, float]:
 
 
 # ── Núcleo: cálculo por feature ──────────────────────────────────────────────
+def _source_feature_models(X_s, X_s_imp, v_idx, n_feat, idx_tr, idx_va, xgb_kw):
+    """Per-feature source models (XGBoost and LASSO) and their source baselines. They depend
+    only on the source cohort, so they are memoised across target cohorts (v0.3.0)."""
+    import os
+    key = (_SOURCE_KEY.get(id(X_s)), v_idx)
+    if key[0] is not None and key in _SOURCE_CACHE:
+        return _SOURCE_CACHE[key]
+    # Optional on-disk cache shared between processes (set RECAL_DRIFT_CACHE_DIR)
+    disk = os.environ.get("RECAL_DRIFT_CACHE_DIR")
+    f = None
+    if disk and key[0] is not None:
+        from pathlib import Path
+
+        import joblib
+        f = Path(disk) / f"{key[0]}_{v_idx}.joblib"
+        if f.exists():
+            try:
+                out = joblib.load(f)
+                _SOURCE_CACHE[key] = out
+                return out
+            except Exception:
+                pass
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        out = _source_feature_models_uncached(X_s, X_s_imp, v_idx, n_feat, idx_tr, idx_va, xgb_kw)
+    if key[0] is not None:
+        _SOURCE_CACHE[key] = out
+        if f is not None:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            tmp = f.with_suffix(f".{os.getpid()}.tmp")
+            joblib.dump(out, tmp)
+            os.replace(tmp, f)
+    return out
+
+
+def _source_feature_models_uncached(X_s, X_s_imp, v_idx, n_feat, idx_tr, idx_va, xgb_kw):
+        import xgboost as xgb
+        vtype = _detect_vtype(X_s[:, v_idx])
+        if vtype == "all_nan":
+            return {"vtype": vtype, "status": "ALL_NAN"}
+
+        pred_idx = [j for j in range(n_feat) if j != v_idx]
+        y_v = X_s[:, v_idx]
+        m_tr = ~np.isnan(y_v[idx_tr])
+        m_va = ~np.isnan(y_v[idx_va])
+        if m_tr.sum() < 200 or m_va.sum() < 50:
+            return {"vtype": vtype, "status": "INSUFFICIENT_SNUH_DATA"}
+
+        Xtr_xgb = X_s[idx_tr][m_tr][:, pred_idx]
+        Xva_xgb = X_s[idx_va][m_va][:, pred_idx]
+        Xtr_las = X_s_imp[idx_tr][m_tr][:, pred_idx]
+        Xva_las = X_s_imp[idx_va][m_va][:, pred_idx]
+        ytr = y_v[idx_tr][m_tr]
+        yva = y_v[idx_va][m_va]
+
+        # XGBoost
+        try:
+            if vtype == "binary":
+                if len(np.unique(ytr)) < 2:
+                    return {"vtype": vtype, "status": "SINGLE_CLASS"}
+                xmdl = xgb.XGBClassifier(eval_metric="logloss", **xgb_kw)
+                xmdl.fit(Xtr_xgb, ytr.astype(int))
+                X_base = (float(roc_auc_score(yva.astype(int),
+                                              xmdl.predict_proba(Xva_xgb)[:, 1]))
+                          if len(np.unique(yva)) > 1 else np.nan)
+            else:
+                xmdl = xgb.XGBRegressor(**xgb_kw)
+                xmdl.fit(Xtr_xgb, ytr)
+                X_base = float(r2_score(yva, xmdl.predict(Xva_xgb)))
+        except Exception:
+            return {"vtype": vtype, "status": "TRAIN_ERROR_XGB"}
+
+        # LASSO
+        try:
+            if vtype == "binary":
+                lmdl = LogisticRegression(
+                    penalty="l1", solver="liblinear", C=1.0,
+                    max_iter=2000, random_state=SEED,
+                )
+                lmdl.fit(Xtr_las, ytr.astype(int))
+                L_base = (float(roc_auc_score(yva.astype(int),
+                                              lmdl.predict_proba(Xva_las)[:, 1]))
+                          if len(np.unique(yva)) > 1 else np.nan)
+            else:
+                lmdl = _lasso_cv()
+                lmdl.fit(Xtr_las, ytr)
+                L_base = float(r2_score(yva, lmdl.predict(Xva_las)))
+        except Exception:
+            return {"vtype": vtype, "status": "TRAIN_ERROR_LASSO"}
+
+        if np.isnan(X_base) and np.isnan(L_base):
+            return {"vtype": vtype, "status": "NAN_BASELINE"}
+        return {"vtype": vtype, "status": "OK", "xmdl": xmdl, "lmdl": lmdl,
+                "X_base": X_base, "L_base": L_base, "pred_idx": pred_idx}
+
+
 def compute_drift_decomposition(
     X_s: np.ndarray,
     X_t: np.ndarray,
@@ -175,7 +284,6 @@ def compute_drift_decomposition(
     -------
     dict con claves: drift_type_dict, shap_dict, lbase_dict, df
     """
-    import xgboost as xgb
 
     # ── Cache ───────────────────────────────────────────────────────────────
     if cache_path is not None:
@@ -191,6 +299,9 @@ def compute_drift_decomposition(
     # Sanitizar Inf → NaN
     X_s = np.where(np.isinf(X_s), np.nan, X_s.astype(float))
     X_t = np.where(np.isinf(X_t), np.nan, X_t.astype(float))
+    import hashlib
+    _SOURCE_KEY.clear()
+    _SOURCE_KEY[id(X_s)] = hashlib.sha1(np.ascontiguousarray(X_s).tobytes()).hexdigest() + str(len(schema))
 
     # ── Índices: features 100% NaN en target son "structurally absent" ──────
     nan_t_rate = np.isnan(X_t).mean(axis=0)
@@ -268,72 +379,15 @@ def compute_drift_decomposition(
             if verbose and ((i + 1) % 25 == 0 or i == 0):
                 logger.info("  drift [%d/%d] %s", i + 1, n_corr, v_name)
 
-            vtype = _detect_vtype(X_s[:, v_idx])
-            if vtype == "all_nan":
+            src = _source_feature_models(X_s, X_s_imp, v_idx, n_feat, idx_tr, idx_va, xgb_kw)
+            vtype = src["vtype"]
+            if src["status"] == "ALL_NAN":
                 continue
-
-            pred_idx = [j for j in range(n_feat) if j != v_idx]
-            y_v = X_s[:, v_idx]
-            m_tr = ~np.isnan(y_v[idx_tr])
-            m_va = ~np.isnan(y_v[idx_va])
-            if m_tr.sum() < 200 or m_va.sum() < 50:
-                records.append({"feature": v_name, "v_type": vtype,
-                                "drift_type": "INSUFFICIENT_SNUH_DATA"})
+            if src["status"] != "OK":
+                records.append({"feature": v_name, "v_type": vtype, "drift_type": src["status"]})
                 continue
-
-            Xtr_xgb = X_s[idx_tr][m_tr][:, pred_idx]
-            Xva_xgb = X_s[idx_va][m_va][:, pred_idx]
-            Xtr_las = X_s_imp[idx_tr][m_tr][:, pred_idx]
-            Xva_las = X_s_imp[idx_va][m_va][:, pred_idx]
-            ytr = y_v[idx_tr][m_tr]
-            yva = y_v[idx_va][m_va]
-
-            # XGBoost
-            try:
-                if vtype == "binary":
-                    if len(np.unique(ytr)) < 2:
-                        records.append({"feature": v_name, "v_type": vtype,
-                                        "drift_type": "SINGLE_CLASS"})
-                        continue
-                    xmdl = xgb.XGBClassifier(eval_metric="logloss", **xgb_kw)
-                    xmdl.fit(Xtr_xgb, ytr.astype(int))
-                    X_base = (float(roc_auc_score(yva.astype(int),
-                                                  xmdl.predict_proba(Xva_xgb)[:, 1]))
-                              if len(np.unique(yva)) > 1 else np.nan)
-                else:
-                    xmdl = xgb.XGBRegressor(**xgb_kw)
-                    xmdl.fit(Xtr_xgb, ytr)
-                    X_base = float(r2_score(yva, xmdl.predict(Xva_xgb)))
-            except Exception:
-                records.append({"feature": v_name, "v_type": vtype,
-                                "drift_type": "TRAIN_ERROR_XGB"})
-                continue
-
-            # LASSO
-            try:
-                if vtype == "binary":
-                    lmdl = LogisticRegression(
-                        penalty="l1", solver="liblinear", C=1.0,
-                        max_iter=2000, random_state=SEED,
-                    )
-                    lmdl.fit(Xtr_las, ytr.astype(int))
-                    L_base = (float(roc_auc_score(yva.astype(int),
-                                                  lmdl.predict_proba(Xva_las)[:, 1]))
-                              if len(np.unique(yva)) > 1 else np.nan)
-                else:
-                    lmdl = LassoCV(cv=3, n_alphas=15, max_iter=3000,
-                                   n_jobs=1, random_state=SEED)
-                    lmdl.fit(Xtr_las, ytr)
-                    L_base = float(r2_score(yva, lmdl.predict(Xva_las)))
-            except Exception:
-                records.append({"feature": v_name, "v_type": vtype,
-                                "drift_type": "TRAIN_ERROR_LASSO"})
-                continue
-
-            if np.isnan(X_base) and np.isnan(L_base):
-                records.append({"feature": v_name, "v_type": vtype,
-                                "drift_type": "NAN_BASELINE"})
-                continue
+            xmdl, lmdl, X_base, L_base, pred_idx = (src["xmdl"], src["lmdl"], src["X_base"],
+                                                    src["L_base"], src["pred_idx"])
 
             # Target availability
             y_vc = X_t[:, v_idx]
