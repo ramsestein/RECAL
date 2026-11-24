@@ -529,6 +529,59 @@ in each cohort and the change |ΔVIF| is flagged against configurable thresholds
 # ── Nuevas secciones de auditabilidad ─────────────────────────────────────────
 
 
+def _recal_version() -> str:
+    try:
+        from importlib.metadata import version
+        return version("recal")
+    except Exception:
+        from recal import __version__
+        return __version__
+
+
+_VERDICT_COLOURS = {"GREEN": "#2E7D32", "AMBER": "#EF6C00", "RED": "#C62828", "INDETERMINATE": "#616161"}
+
+
+def _render_verdict_section(verdict: dict | None) -> str:
+    """Deploy-or-retrain verdict with its uncertainty, thresholds and intended use."""
+    from recal_cli.verdict import INTENDED_USE
+    if not verdict:
+        return (
+            '<div class="severe-box"><strong>Verdict not available</strong> '
+            "(cross-validation or oracle disabled or failed).</div>"
+            f'<p class="meta"><strong>Intended use and limitations.</strong> {INTENDED_USE}</p>'
+        )
+
+    def chip(v):
+        return (f'<span style="background:{_VERDICT_COLOURS.get(v, "#616161")};color:#fff;'
+                f'padding:2px 10px;border-radius:10px">{v}</span>')
+
+    def f(x, nd=3):
+        return "—" if x is None or (isinstance(x, float) and x != x) else f"{x:.{nd}f}"
+
+    ci = verdict.get("recovery_ratio_ci") or (None, None)
+    t = verdict["thresholds"]
+    return f"""
+<h2>0. Deploy-or-retrain verdict</h2>
+<table>
+<tr><th>Rule</th><th>Verdict</th><th>Reason</th></tr>
+<tr><td>V2 (interval-aware, primary)</td><td>{chip(verdict['v2']['verdict'])}</td><td>{verdict['v2']['reason']}</td></tr>
+<tr><td>V1 (point estimates, out-of-fold)</td><td>{chip(verdict['v1']['verdict'])}</td><td>{verdict['v1']['reason']}</td></tr>
+</table>
+<table>
+<tr><th>Quantity (out-of-fold)</th><th>Value</th></tr>
+<tr><td>Target events</td><td>{verdict.get('n_events')}</td></tr>
+<tr><td>Optimism gap (in-sample − OOF AUROC)</td><td>{f(verdict.get('optimism_gap'))}</td></tr>
+<tr><td>Total gap (oracle − raw AUROC)</td><td>{f(verdict.get('total_gap'))}</td></tr>
+<tr><td>Recovery ratio [95% bootstrap CI]</td><td>{f(verdict.get('recovery_ratio'))} [{f(ci[0])}, {f(ci[1])}]</td></tr>
+<tr><td>OOF calibration slope / intercept</td><td>{f(verdict.get('slope_oof'), 2)} / {f(verdict.get('citl_oof'), 2)}</td></tr>
+</table>
+<p class="meta">Thresholds ({t['status']}): optimism ≤ {t['optimism_ok']} / &gt; {t['optimism_max']};
+recovery ratio {t['rr_low']} / {t['rr_high']}; calibration slope {t['slope_range'][0]}–{t['slope_range'][1]};
+minimum events {t['min_events']}. The recovery-ratio CI does not include refitting variability.</p>
+<div class="severe-box"><strong>Intended use and limitations.</strong> {INTENDED_USE}</div>
+"""
+
+
 def _render_drift_attribution_section(
     drift_decomp: dict | None,
     oracle_result: dict | None,
@@ -971,6 +1024,7 @@ def generate_html_report(
     patient_profiles: dict | None = None,
     significance_tests: dict | None = None,
     feature_combined_scores: dict | None = None,
+    verdict: dict | None = None,
 ) -> str:
     """
     Generate a self-contained HTML report for the RECAL pair.
@@ -1103,8 +1157,10 @@ def generate_html_report(
 <p class="meta">
   Generated: {timestamp} |
   Transfer: <strong>{source_name} → {target_name}</strong> |
-  RECAL v0.1.0
+  RECAL v{_recal_version()}
 </p>
+
+{_render_verdict_section(verdict)}
 
 <div class="summary-box">
   <strong>Executive summary:</strong>

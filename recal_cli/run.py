@@ -558,12 +558,15 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
         if gap > 0.05:
             print("    WARNING: gap > 0.05 — consider regularisation / fewer sweep steps")
 
+        oof_scores = cv_res["oof_scores"]
         cv_serializable = {k: v for k, v in cv_res.items() if k != "oof_scores"}
         cv_serializable["oof_auroc_ci"] = list(cv_res["oof_auroc_ci"])
         out["cv"] = cv_serializable
     else:
         print("\n[5/6] Honest CV: SKIPPED")
         out["cv"] = None
+        cv_res = None
+        oof_scores = None
 
     # 5.5. Advanced evaluations (oracle, drift attribution, counterfactuals, Brier, YAML audit)
     eval_cfg = cfg.evaluation
@@ -611,7 +614,9 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
                 if oracle_result else None
             )
             auroc_oracle = oracle_result["auroc"] if oracle_result else None
-            drift_decomp = drift_decomposition(
+            # Primary decomposition uses the OUT-OF-FOLD AUROC of the wrapper (protocol §5.1);
+            # the in-sample decomposition is kept for transparency only.
+            drift_decomp_in_sample = drift_decomposition(
                 auroc_raw=m_raw["auroc"],
                 auroc_adapted=m_adapted["auroc"],
                 auroc_oracle=auroc_oracle,
@@ -619,6 +624,20 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
                 ci_adapted=ci_adapted,
                 ci_oracle=ci_oracle,
             )
+            out["drift_decomp_in_sample"] = drift_decomp_in_sample
+            if cv_res is not None:
+                drift_decomp = drift_decomposition(
+                    auroc_raw=m_raw["auroc"],
+                    auroc_adapted=cv_res["oof_metrics"]["auroc"],
+                    auroc_oracle=auroc_oracle,
+                    ci_raw=ci_raw,
+                    ci_adapted=tuple(cv_res["oof_auroc_ci"]),
+                    ci_oracle=ci_oracle,
+                )
+                drift_decomp["basis"] = "out-of-fold"
+            else:
+                drift_decomp = drift_decomp_in_sample
+                drift_decomp["basis"] = "in-sample (CV disabled; verdict not available)"
             if drift_decomp and not drift_decomp.get("indeterminate"):
                 print(f"  Recovery ratio: {drift_decomp['recovery_ratio']:.3f}  "
                       f"[{drift_decomp['recovery_ratio_ci'][0]:.3f}, {drift_decomp['recovery_ratio_ci'][1]:.3f}]")
@@ -727,7 +746,40 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
         except Exception as e:
             logger.warning("Patient profile analysis failed: %s", e)
 
-    out["oracle"] = oracle_result
+    # Deploy-or-retrain verdict (protocol §5; provisional thresholds)
+    verdict = None
+    if oof_scores is not None and oracle_result is not None:
+        try:
+            from recal_cli.verdict import bootstrap_recovery_ratio, calibration_slope_intercept, decide
+            valid = ~np.isnan(oof_scores)
+            slope_oof, citl_oof = calibration_slope_intercept(pair_filt.y_t[valid], oof_scores[valid])
+            boot = bootstrap_recovery_ratio(
+                pair_filt.y_t, scores_raw, oof_scores, oracle_result["oof_scores"],
+                seed=cfg.overfitting_check.random_state,
+            )
+            verdict = decide(
+                n_events=int(pair_filt.y_t.sum()),
+                auroc_raw=m_raw["auroc"],
+                auroc_in=m_adapted["auroc"],
+                auroc_oof=cv_res["oof_metrics"]["auroc"],
+                auroc_oracle=oracle_result["auroc"],
+                rr_ci=boot["ci"],
+                slope_oof=slope_oof,
+            )
+            verdict["citl_oof"] = citl_oof
+            verdict["bootstrap"] = {"n_boot": boot["n_boot"], "share_undefined": boot["share_undefined"]}
+            print(f"\n  ── Verdict (provisional thresholds) ──")
+            print(f"    V2: {verdict['v2']['verdict']}  ({verdict['v2']['reason']})")
+            print(f"    V1: {verdict['v1']['verdict']}  ({verdict['v1']['reason']})")
+        except Exception as e:
+            logger.warning("Verdict failed: %s", e)
+    elif int(pair_filt.y_t.sum()) < 10:
+        from recal_cli.verdict import decide
+        verdict = decide(int(pair_filt.y_t.sum()), m_raw["auroc"], m_adapted["auroc"],
+                         np.nan, None, None, np.nan)
+    out["verdict"] = verdict
+
+    out["oracle"] = {k: v for k, v in oracle_result.items() if k != "oof_scores"} if oracle_result else None
     out["drift_decomp"] = drift_decomp
     out["feature_attribution"] = feature_attr
     out["counterfactuals"] = counterfactuals
@@ -781,6 +833,7 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
                     "n_source_events": int(pair_filt.y_s.sum()),
                 },
                 oracle_results=oracle_result,
+                verdict=verdict,
                 drift_decomp=drift_decomp,
                 feature_attribution=feature_attr,
                 counterfactuals=counterfactuals,

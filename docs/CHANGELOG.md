@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.0] — 2026-11-24
+
+Changes made in response to the SoftwareX review of SOFTX-D-26-01085 and required by the
+pre-registered validation protocol (validation/PREREGISTRATION.md §4.5).
+
+### Added
+- `recal_cli/verdict.py`: deploy-or-retrain verdict with rules V2 (interval-aware, primary)
+  and V1 (point estimates), INDETERMINATE state (E < 10 or interval crossing a threshold),
+  provisional thresholds stated as such, and an intended-use/limitations statement.
+- Percentile bootstrap CI of the recovery ratio that keeps the correlation between the raw,
+  out-of-fold and oracle AUROCs (replaces the delta-method CI that assumed independence).
+- Out-of-fold calibration slope and calibration-in-the-large intercept in the verdict.
+- Verdict section (section 0) in the HTML report, with intended use and limitations.
+- `configs/synthetic.yaml`: CLI configuration for the shipped synthetic example.
+- `requirements-lock.txt` and the `validation` optional dependency group.
+
+### Changed
+- The gap decomposition and recovery ratio are computed from out-of-fold predictions;
+  the in-sample decomposition is still reported as `drift_decomp_in_sample`.
+- MMD² permutation test computes the pooled kernel once (identical statistic, ~10× faster
+  end-to-end on the synthetic example).
+- Version unified to 0.3.0 (package, `recal`, `recal_core`, report footer).
+
+### Fixed
+- `recal` console entry point now points to `recal_cli.run:main` (was a missing module).
+- Placeholder author e-mail in `pyproject.toml`.
+
 ## [0.2.0] — 2026-06-10
 
 ### Renamed / Rebranded

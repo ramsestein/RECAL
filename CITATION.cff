@@ -10,8 +10,8 @@ abstract: >
   probabilities using a small labelled target validation cohort.
   Supports XGBoost, scikit-learn, Keras, PyTorch, and custom (BYOM) backends.
 
-version: "0.2.2"
-date-released: "2026-06-11"
+version: "0.3.0"
+date-released: "2026-11-24"
 license: MIT
 
 authors:

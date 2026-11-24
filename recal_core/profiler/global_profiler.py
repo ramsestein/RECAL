@@ -166,15 +166,18 @@ def _mmd2_with_permutation(
 
     observed_mmd2 = _compute_mmd2(Xs, Xt, bandwidth)
 
-    # Permutación
+    # Permutación. The RBF kernel of the pooled sample is computed once and each
+    # permutation only re-indexes it (same statistic and same RNG stream as recomputing
+    # the kernel per permutation, ~100× faster).
     combined = np.vstack([Xs, Xt])
     n_total = len(combined)
+    sq = (combined ** 2).sum(axis=1)
+    d2 = np.maximum(sq[:, None] + sq[None, :] - 2.0 * combined @ combined.T, 0.0)
+    K = np.exp(-d2 / (2 * bandwidth))
     perm_mmd2 = np.zeros(n_permutations)
     for i in range(n_permutations):
         idx = rng.permutation(n_total)
-        perm_s = combined[idx[:n_s]]
-        perm_t = combined[idx[n_s : n_s + n_t]]
-        perm_mmd2[i] = _compute_mmd2(perm_s, perm_t, bandwidth)
+        perm_mmd2[i] = _mmd2_from_kernel(K, idx[:n_s], idx[n_s : n_s + n_t])
 
     pvalue = float((perm_mmd2 >= observed_mmd2).mean())
     return float(observed_mmd2), pvalue
@@ -192,6 +195,19 @@ def _median_bandwidth(Xs: np.ndarray, Xt: np.ndarray) -> float:
     upper_tri = sq_dists[np.triu_indices(len(combined), k=1)]
     median_dist = float(np.median(upper_tri))
     return max(median_dist, 1e-8)
+
+
+def _mmd2_from_kernel(K: np.ndarray, i_s: np.ndarray, i_t: np.ndarray) -> float:
+    """Unbiased MMD² from a precomputed pooled kernel (same estimator as _compute_mmd2)."""
+    ns, nt = len(i_s), len(i_t)
+    Kss = K[np.ix_(i_s, i_s)]
+    Ktt = K[np.ix_(i_t, i_t)]
+    mmd2 = (
+        (Kss.sum() - np.trace(Kss)) / (ns * (ns - 1))
+        + (Ktt.sum() - np.trace(Ktt)) / (nt * (nt - 1))
+        - 2 * K[np.ix_(i_s, i_t)].mean()
+    )
+    return float(max(mmd2, 0.0))
 
 
 def _compute_mmd2(Xs: np.ndarray, Xt: np.ndarray, bandwidth: float) -> float:
