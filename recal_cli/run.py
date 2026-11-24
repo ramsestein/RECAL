@@ -750,7 +750,11 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
     verdict = None
     if oof_scores is not None and oracle_result is not None:
         try:
-            from recal_cli.verdict import bootstrap_recovery_ratio, calibration_slope_intercept, decide
+            from recal_cli.verdict import (
+                bootstrap_recovery_ratio,
+                calibration_slope_intercept,
+                decide,
+            )
             valid = ~np.isnan(oof_scores)
             slope_oof, citl_oof = calibration_slope_intercept(pair_filt.y_t[valid], oof_scores[valid])
             boot = bootstrap_recovery_ratio(
@@ -768,7 +772,7 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
             )
             verdict["citl_oof"] = citl_oof
             verdict["bootstrap"] = {"n_boot": boot["n_boot"], "share_undefined": boot["share_undefined"]}
-            print(f"\n  ── Verdict (provisional thresholds) ──")
+            print("\n  ── Verdict (provisional thresholds) ──")
             print(f"    V2: {verdict['v2']['verdict']}  ({verdict['v2']['reason']})")
             print(f"    V1: {verdict['v1']['verdict']}  ({verdict['v1']['reason']})")
         except Exception as e:
