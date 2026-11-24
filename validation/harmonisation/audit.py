@@ -11,7 +11,7 @@ predictor–outcome association is computed.
 
 Usage
 -----
-    python -I audit.py --derived /path/to/derived
+    python audit.py --derived /path/to/derived
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def main(argv=None) -> None:
     lines = ["# Harmonisation audit", "",
              f"Spec version {SPEC['version']}. Missing-rate rule: keep a feature if missing ≤ {thr:.0%} "
              "in every database (protocol §3.3).", "", "## Cohort flow", ""]
-    steps = ["patients_total", "icu_stays_total", "first_icu_stay", "age_ge_18",
+    steps = ["patients_total", "icu_stays_total", "adult_icu_unit_stays", "first_icu_stay", "age_ge_18",
              "icu_los_ge_24h", "alive_at_24h", "final_cohort", "events_icu_death"]
     lines.append("| Step | " + " | ".join(flows[db]["database"] for db in DBS) + " |")
     lines.append("|---|" + "---|" * len(DBS))

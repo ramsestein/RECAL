@@ -6,9 +6,9 @@ harmonised predictors, the outcome and audit metadata, following spec.yaml.
 
 Usage
 -----
-    python -I extract.py --data-root /path/to/data --out /path/to/derived --db mimic
-    python -I extract.py --data-root /path/to/data --out /path/to/derived --db nwicu
-    python -I extract.py --data-root /path/to/data --out /path/to/derived --db inspire
+    python extract.py --data-root /path/to/data --out /path/to/derived --db mimic
+    python extract.py --data-root /path/to/data --out /path/to/derived --db nwicu
+    python extract.py --data-root /path/to/data --out /path/to/derived --db inspire
 
 `--data-root` contains the PhysioNet copies laid out as in spec.yaml (databases.*.root).
 Outputs (never committed): <out>/<db>_features.parquet, <out>/<db>_flow.json and the
@@ -108,13 +108,25 @@ def cohort_mimic_like(con, root: Path, db: str) -> dict:
     flow = {}
     con.execute(f"""
         CREATE OR REPLACE TABLE stays_all AS
-        SELECT subject_id, hadm_id, stay_id,
+        SELECT subject_id, hadm_id, stay_id, first_careunit,
                TRY_CAST(intime AS TIMESTAMP) AS intime,
                TRY_CAST(outtime AS TIMESTAMP) AS outtime
         FROM {_csv(root / lay['icu'] / 'icustays.csv.gz')}
     """)
     flow["icu_stays_total"] = con.execute("SELECT count(*) FROM stays_all").fetchone()[0]
     flow["patients_total"] = con.execute("SELECT count(DISTINCT subject_id) FROM stays_all").fetchone()[0]
+    flow["careunits_excluded"] = {
+        u: int(n) for u, n in con.execute(f"""
+            SELECT first_careunit, count(*) FROM stays_all
+            WHERE NOT (regexp_matches(coalesce(first_careunit, ''), '{c['icu_careunit_include_regex']}')
+                       AND NOT regexp_matches(coalesce(first_careunit, ''), '{c['icu_careunit_exclude_regex']}'))
+            GROUP BY 1 ORDER BY 2 DESC""").fetchall()}
+    con.execute(f"""
+        DELETE FROM stays_all
+        WHERE NOT (regexp_matches(coalesce(first_careunit, ''), '{c['icu_careunit_include_regex']}')
+                   AND NOT regexp_matches(coalesce(first_careunit, ''), '{c['icu_careunit_exclude_regex']}'))
+    """)
+    flow["adult_icu_unit_stays"] = con.execute("SELECT count(*) FROM stays_all").fetchone()[0]
 
     con.execute("""
         CREATE OR REPLACE TABLE stays AS
@@ -419,7 +431,7 @@ def main(argv=None) -> None:
     report = {
         "database": SPEC["databases"][args.db]["version"],
         "spec_version": SPEC["version"],
-        "cohort_flow": {k: int(v) for k, v in flow.items()},
+        "cohort_flow": {k: (v if isinstance(v, dict) else int(v)) for k, v in flow.items()},
         "extraction_audit": audit,
         "runtime_min": round((time.time() - t0) / 60, 1),
     }

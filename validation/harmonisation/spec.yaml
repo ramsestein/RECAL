@@ -11,6 +11,12 @@ cohort:
   min_age: 18
   index_stay: first_icu_stay_per_patient      # by ICU admission time
   min_icu_los_hours: 24                        # prediction at 24 h
+  # MIMIC-IV and NWICU `icustays` also contain intermediate, step-down and ward units
+  # (e.g. "Neuro Intermediate", "Neuro Stepdown", "PACU"; NWICU "INPATIENT", "IMCU",
+  # "BOARDERS"). Only stays whose first_careunit is an adult ICU are eligible; the index
+  # stay is chosen AFTER this filter. INSPIRE ICU episodes (icuin_time) are ICU by definition.
+  icu_careunit_include_regex: '(?i)(intensive care|icu|ccu)'
+  icu_careunit_exclude_regex: '(?i)(intermediate|stepdown|picu|nicu|pacu)'
   exclude_death_before_hours: 24               # implied by the LOS rule; enforced explicitly
   # Outcome: ICU mortality = death during the index ICU stay. A death charted up to
   # `death_tolerance_hours` after ICU discharge is counted (charting delay at time of death).
