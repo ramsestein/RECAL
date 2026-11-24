@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 import time
 from pathlib import Path
 
@@ -35,7 +36,7 @@ F_TO_C = "((v - 32.0) * 5.0 / 9.0)"
 
 
 def _con(out: Path, memory_limit: str, threads: int) -> duckdb.DuckDBPyConnection:
-    tmp = out / "_duckdb_tmp"
+    tmp = Path(tempfile.gettempdir()) / "recal_duckdb_tmp"   # spill files outside the output folder
     tmp.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
     con.execute(f"SET memory_limit='{memory_limit}'")
