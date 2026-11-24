@@ -89,14 +89,19 @@ def main(argv=None) -> None:
             buf = buf[nl + 1:]
         if len(buf) < BLOCK and not buf.endswith(b"\n"):
             buf += b"\n"  # last line of the file without a trailing newline
+        # cut at the last newline that is not inside a quoted field (quoted values may
+        # contain newlines); every block starts at a record boundary, so quote parity holds
         last = buf.rfind(b"\n")
+        while last >= 0 and buf.count(b'"', 0, last) % 2:
+            last = buf.rfind(b"\n", 0, last)
         if last < 0:
-            raise RuntimeError("line longer than block size")
+            raise RuntimeError("record longer than block size")
         chunk = buf[: last + 1]
         cols = state["header"]
         tbl = pacsv.read_csv(
             io.BytesIO(chunk),
             read_options=pacsv.ReadOptions(column_names=cols, block_size=16 * 1024 * 1024),
+            parse_options=pacsv.ParseOptions(newlines_in_values=True),
             convert_options=pacsv.ConvertOptions(column_types={c: pa.string() for c in cols},
                                                  strings_can_be_null=True),
         )
