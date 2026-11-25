@@ -4,7 +4,7 @@ import pickle
 
 import numpy as np
 
-from recal_cli import adapt_select as A
+from recal_cli import adapt_select as A  # noqa: N812
 
 
 class _ToyModel:
