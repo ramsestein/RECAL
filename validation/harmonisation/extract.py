@@ -446,7 +446,13 @@ def events_eicu(con, root: Path) -> None:
 # Common: bounds, derived MAP, aggregation
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_features(con, db: str, out: Path) -> dict:
+def _partition(con, args) -> None:
+    """Keep only one hash partition of the cohort (cohort flow is computed on the whole cohort)."""
+    if args.partition is not None:
+        con.execute(f"DELETE FROM cohort WHERE hash(CAST(key AS VARCHAR)) % {args.partitions} != {args.partition}")
+
+
+def build_features(con, db: str, out: Path, suffix: str = "") -> dict:
     audit = {}
     # Plausibility bounds → out-of-range values dropped (counted for the audit)
     for tbl in ("vitals_long", "labs_long"):
@@ -507,9 +513,10 @@ def build_features(con, db: str, out: Path) -> dict:
         LEFT JOIN fv ON CAST(fv.key AS VARCHAR) = CAST(k.key AS VARCHAR)
         LEFT JOIN fl ON CAST(fl.key AS VARCHAR) = CAST(k.key AS VARCHAR)
     """)
-    con.execute(f"COPY features TO '{(out / f'{db}_features.parquet').as_posix()}' (FORMAT parquet)")
-    con.execute(f"COPY vit_all TO '{(out / f'{db}_vitals_long.parquet').as_posix()}' (FORMAT parquet)")
-    con.execute(f"COPY labs_long_ok TO '{(out / f'{db}_labs_long.parquet').as_posix()}' (FORMAT parquet)")
+    con.execute(f"COPY features TO '{(out / f'{db}_features{suffix}.parquet').as_posix()}' (FORMAT parquet)")
+    if not suffix:  # long tables only for unpartitioned runs (audit use)
+        con.execute(f"COPY vit_all TO '{(out / f'{db}_vitals_long.parquet').as_posix()}' (FORMAT parquet)")
+        con.execute(f"COPY labs_long_ok TO '{(out / f'{db}_labs_long.parquet').as_posix()}' (FORMAT parquet)")
     return audit
 
 
@@ -520,6 +527,10 @@ def main(argv=None) -> None:
     ap.add_argument("--db", required=True, choices=["mimic", "nwicu", "inspire", "eicu"])
     ap.add_argument("--memory-limit", default="2GB")
     ap.add_argument("--threads", type=int, default=2)
+    ap.add_argument("--partitions", type=int, default=1,
+                    help="split the cohort into N hash partitions (for time-limited environments)")
+    ap.add_argument("--partition", type=int, default=None, help="process only this partition (0..N-1)")
+    ap.add_argument("--merge", action="store_true", help="concatenate partition outputs into <db>_features.parquet")
     ap.add_argument("--prefiltered", action="store_true",
                     help="read chartevents/labevents from <out>/prefiltered (prefilter_gz.py)")
     args = ap.parse_args(argv)
@@ -528,6 +539,31 @@ def main(argv=None) -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
     root = args.data_root / SPEC["databases"][args.db]["root"]
+    if args.merge:
+        import pandas as pd
+        parts = [args.out / f"{args.db}_features.part{i}.parquet" for i in range(args.partitions)]
+        missing = [p.name for p in parts if not p.exists()]
+        if missing:
+            raise SystemExit(f"missing partitions: {missing}")
+        pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True).to_parquet(
+            args.out / f"{args.db}_features.parquet")
+        audits = [json.loads((args.out / f"{args.db}_flow.part{i}.json").read_text()) for i in range(args.partitions)]
+        rep = audits[0]
+        for k in ("vitals_long_records", "vitals_long_dropped_out_of_bounds", "labs_long_records",
+                  "labs_long_dropped_out_of_bounds"):
+            rep["extraction_audit"][k] = sum(a["extraction_audit"][k] for a in audits)
+        for tbl in ("vitals_long_by_var", "labs_long_by_var"):
+            agg = {}
+            for a in audits:
+                for v, d in a["extraction_audit"][tbl].items():
+                    agg.setdefault(v, {"n": 0, "dropped": 0})
+                    agg[v]["n"] += d["n"]
+                    agg[v]["dropped"] += d["dropped"]
+            rep["extraction_audit"][tbl] = agg
+        rep["partitions"] = args.partitions
+        (args.out / f"{args.db}_flow.json").write_text(json.dumps(rep, indent=2), encoding="utf-8")
+        _log(f"{args.db}: merged {args.partitions} partitions")
+        return
     con = _con(args.out, args.memory_limit, args.threads)
     _register_maps(con, args.db)
 
@@ -535,15 +571,19 @@ def main(argv=None) -> None:
     _log(f"{args.db}: cohort")
     if args.db == "inspire":
         flow = cohort_inspire(con, root)
+        _partition(con, args)
         events_inspire(con, root)
     elif args.db == "eicu":
         flow = cohort_eicu(con, root)
+        _partition(con, args)
         events_eicu(con, root)
     else:
         flow = cohort_mimic_like(con, root, args.db)
+        _partition(con, args)
         events_mimic_like(con, root, args.db, args.out)
     _log(f"{args.db}: features")
-    audit = build_features(con, args.db, args.out)
+    suffix = f".part{args.partition}" if args.partition is not None else ""
+    audit = build_features(con, args.db, args.out, suffix)
 
     report = {
         "database": SPEC["databases"][args.db]["version"],
@@ -552,7 +592,8 @@ def main(argv=None) -> None:
         "extraction_audit": audit,
         "runtime_min": round((time.time() - t0) / 60, 1),
     }
-    (args.out / f"{args.db}_flow.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    sfx = f".part{args.partition}" if args.partition is not None else ""
+    (args.out / f"{args.db}_flow{sfx}.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     _log(f"{args.db}: done in {report['runtime_min']} min — {flow['final_cohort']} patients")
 
 
