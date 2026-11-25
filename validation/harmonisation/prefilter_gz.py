@@ -40,10 +40,15 @@ TABLE_PATH = {
     ("nwicu", "labevents"): "nw_hosp/labevents.csv.gz",
     ("eicu", "vitalPeriodic"): "vitalPeriodic.csv.gz",
     ("eicu", "vitalAperiodic"): "vitalAperiodic.csv.gz",
+    ("eicu", "nurseCharting"): "nurseCharting.csv.gz",
 }
 # Wide eICU tables have no itemid: rows are kept by offset window instead (vitals window)
 OFFSET_FILTER = {("eicu", "vitalPeriodic"): "observationoffset",
-                 ("eicu", "vitalAperiodic"): "observationoffset"}
+                 ("eicu", "vitalAperiodic"): "observationoffset",
+                 ("eicu", "nurseCharting"): "nursingchartoffset"}
+# optional value filter on top of the offset window: (column, allowed values)
+VALUE_FILTER = {("eicu", "nurseCharting"): ("nursingchartcelltypevalname",
+                                            ["Temperature (C)", "Temperature (F)"])}
 BLOCK = 128 * 1024 * 1024
 
 
@@ -62,7 +67,7 @@ def main(argv=None) -> None:
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--db", required=True, choices=["mimic", "nwicu", "eicu"])
     ap.add_argument("--table", required=True,
-                    choices=["chartevents", "labevents", "vitalPeriodic", "vitalAperiodic"])
+                    choices=["chartevents", "labevents", "vitalPeriodic", "vitalAperiodic", "nurseCharting"])
     ap.add_argument("--budget-s", type=float, default=150)
     args = ap.parse_args(argv)
 
@@ -118,7 +123,11 @@ def main(argv=None) -> None:
         )
         if off_col:
             off = pc.cast(tbl[off_col], pa.float64())
-            sub = tbl.filter(pc.and_(pc.greater_equal(off, lo), pc.less(off, hi)))
+            mask = pc.and_(pc.greater_equal(off, lo), pc.less(off, hi))
+            vf = VALUE_FILTER.get((args.db, args.table))
+            if vf:
+                mask = pc.and_(mask, pc.is_in(tbl[vf[0]], value_set=pa.array(vf[1], type=pa.string())))
+            sub = tbl.filter(mask)
         else:
             sub = tbl.filter(pc.is_in(tbl["itemid"], value_set=keep))
         if sub.num_rows:

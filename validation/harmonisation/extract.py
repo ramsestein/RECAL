@@ -418,6 +418,15 @@ def events_eicu(con, root: Path) -> None:
                 parts.append(f"""SELECT patientunitstayid AS key, '{var}' AS var, '{mod}' AS modality,
                     TRY_CAST(observationoffset AS DOUBLE) / 60.0 AS t_h, TRY_CAST({item} AS DOUBLE) AS v
                     FROM {src}""")
+    # temperature: vitalPeriodic "temperature" is sparse in eICU; nurse-charted temperature
+    # (nurseCharting, °C or °F) is added with the same window (protocol v2.0, B1)
+    nc = _events(root, "nurseCharting.csv.gz", "eicu", "nurseCharting")
+    parts.append(f"""SELECT patientunitstayid AS key, 'temp' AS var, 'any' AS modality,
+        TRY_CAST(nursingchartoffset AS DOUBLE) / 60.0 AS t_h,
+        CASE WHEN nursingchartcelltypevalname = 'Temperature (F)'
+             THEN (TRY_CAST(nursingchartvalue AS DOUBLE) - 32.0) * 5.0 / 9.0
+             ELSE TRY_CAST(nursingchartvalue AS DOUBLE) END AS v
+        FROM {nc} WHERE nursingchartcelltypevalname IN ('Temperature (C)', 'Temperature (F)')""")
     _log("eicu: vitals")
     con.execute(f"""
         CREATE OR REPLACE TABLE vitals_long AS

@@ -108,7 +108,7 @@ vitals:
     mimic: {items: {c: [223762], f: [223761]}}
     nwicu: {items: {f: [323761]}}
     inspire: {items: {c: [bt]}}
-    eicu: {items: {c: [temperature]}}           # vitalPeriodic, °C
+    eicu: {items: {c: [temperature]}}           # vitalPeriodic (°C) + nurseCharting Temperature (C)/(F), see extract.py
 
 # ---------------------------------------------------------------------------
 # Laboratory (−6 h to 24 h). MIMIC/NWICU: labevents itemids. INSPIRE: labs item_name.
