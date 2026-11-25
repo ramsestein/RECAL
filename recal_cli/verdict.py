@@ -65,13 +65,13 @@ def calibration_slope_intercept(y: np.ndarray, p: np.ndarray) -> tuple[float, fl
     slope = float(lr.coef_[0, 0])
     # intercept with offset: Newton iterations on a single parameter
     a = 0.0
-    for _ in range(50):
+    for _ in range(200):
         mu = 1 / (1 + np.exp(-(a + lp)))
         g = np.sum(y - mu)
         h = np.sum(mu * (1 - mu))
-        if h <= 0:
+        if h <= 1e-12:
             break
-        step = g / h
+        step = float(np.clip(g / h, -5.0, 5.0))  # damped Newton (v0.4): no divergence on extreme p
         a += step
         if abs(step) < 1e-10:
             break

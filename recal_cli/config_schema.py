@@ -51,6 +51,7 @@ class AdaptConfig:
     apply_qt: bool = True                   # True | False
     apply_woe: str = "auto"                 # "auto" | True | False
     max_missing_rate: float = 0.5
+    selection: str = "cv"                # "cv" (0.4: CV choice of transformation × recalibration) | "designer" (≤0.3)
     drift_csv: str | None = None         # CSV precomputado con drift_type, shap_importance_main_model, L_base
 
 

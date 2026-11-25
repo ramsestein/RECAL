@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.4.0] — unreleased
+
+Scope refined after the extended evaluation of 0.3.0 (validation/PREREGISTRATION.md, results
+on MIMIC-IV, NWICU and INSPIRE): RECAL selects the adaptation that best fits the target
+cohort and estimates how the adapted model performs there. It no longer issues a
+deploy-or-retrain verdict.
+
+### Added
+- `recal_cli/adapt_select.py`: candidates = input transformation (identity | designed |
+  designed with drift decomposition) × recalibration (none | intercept | logistic |
+  isotonic); selection by K-fold held-out log-loss with the one-standard-error rule
+  towards simpler candidates; final fit on the whole cohort; nested-CV estimate of AUROC,
+  Brier, log-loss, calibration slope/intercept and ECE in the target population with
+  bootstrap CIs. `SelectedAdapter` is picklable and predicts new patients without refitting.
+- Report section 0: candidate table, chosen adaptation, expected performance, intended use.
+- `recal_core.selection` config option (`cv`, default; `designer` reproduces ≤ 0.3).
+
+### Changed
+- The deploy-or-retrain verdict (V1/V2) is computed only with `selection: designer`.
+- Damped Newton step in the calibration-intercept estimator (no divergence on extreme
+  predictions).
+
 ## [0.3.0] — 2026-11-24
 
 Changes made in response to the SoftwareX review of SOFTX-D-26-01085 and required by the

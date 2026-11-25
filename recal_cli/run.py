@@ -769,9 +769,11 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
         except Exception as e:
             logger.warning("Patient profile analysis failed: %s", e)
 
-    # Deploy-or-retrain verdict (protocol §5; provisional thresholds)
+    # Deploy-or-retrain verdict: legacy (≤ 0.3, selection="designer") only. Not validated;
+    # removed as a claim in 0.4.
     verdict = None
-    if oof_scores is not None and oracle_result is not None:
+    legacy = cfg.recal_core.selection == "designer"
+    if legacy and oof_scores is not None and oracle_result is not None:
         try:
             from recal_cli.verdict import (
                 bootstrap_recovery_ratio,
@@ -801,7 +803,7 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
             print(f"    V1: {verdict['v1']['verdict']}  ({verdict['v1']['reason']})")
         except Exception as e:
             logger.warning("Verdict failed: %s", e)
-    elif int(pair_filt.y_t.sum()) < 10:
+    elif legacy and int(pair_filt.y_t.sum()) < 10:
         from recal_cli.verdict import decide
         verdict = decide(int(pair_filt.y_t.sum()), m_raw["auroc"], m_adapted["auroc"],
                          np.nan, None, None, np.nan)
@@ -815,6 +817,35 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
     out["calibration_adapted"] = calibration_adapted
     out["calibration_delta"] = calibration_delta_dict
 
+    # 5.9 RECAL 0.4: CV selection of the adaptation + nested estimate (adapt_select)
+    selected = None
+    if cfg.recal_core.selection == "cv":
+        print("\n[5.9] Selecting the adaptation by CV (transformation × recalibration)…")
+        from recal_cli.adapt_select import adapt
+
+        def _drift_for(pair_train):
+            from recal_cli.drift_compute import compute_drift_decomposition
+            with contextlib.redirect_stdout(io.StringIO()):
+                r = compute_drift_decomposition(X_s=pair_train.X_s, X_t=pair_train.X_t,
+                                                schema=schema, model=model, cache_path=None,
+                                                verbose=False)
+            return {"drift_type_dict": r["drift_type_dict"], "shap_dict": r["shap_dict"],
+                    "lbase_dict": r["lbase_dict"]}
+
+        res = adapt(pair_filt, model, schema, drift_fn=_drift_for if drift_kwargs else None,
+                    n_splits=cfg.overfitting_check.n_splits, seed=cfg.overfitting_check.random_state,
+                    pca_k=cfg.recal_core.pca_k, max_n_sweep=cfg.recal_core.max_n_sweep)
+        selected = res["adapter"]
+        est = {k: v for k, v in res["estimate"].items() if k not in ("oof_scores", "fold_ids")}
+        out["selection"] = {"chosen": list(res["selection"]["chosen"]), "reason": res["selection"]["reason"],
+                            "table": res["selection"]["table"]}
+        out["estimate"] = est
+        print(f"  Chosen: {' + '.join(res['selection']['chosen'])}  ({res['selection']['reason']})")
+        if est.get("available"):
+            e, ci = est["estimate"], est["ci95"]
+            print(f"  Expected in target (nested CV): AUROC {e['auroc']:.3f} [{ci['auroc'][0]:.3f}, {ci['auroc'][1]:.3f}]"
+                  f"  Brier {e['brier']:.4f}  slope {e['slope']:.2f}  CITL {e['citl']:.2f}  ECE {e['ece10']:.3f}")
+
     # 6. Outputs
     print("\n[6/6] Saving outputs…")
     if cfg.output.metrics_json:
@@ -823,7 +854,14 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
             json.dump(out, f, indent=2, default=str)
         print(f"  Metrics → {cfg.output.metrics_json}")
 
-    if cfg.output.recal_model:
+    if cfg.output.recal_model and selected is not None:
+        selected.metadata = {"source_name": cfg.output.source_name, "target_name": cfg.output.target_name,
+                             "selection": out.get("selection"), "estimate": out.get("estimate")}
+        try:
+            selected.save(cfg.output.recal_model)
+        except Exception as e:
+            logger.warning("Could not serialise selected adapter: %s", e)
+    elif cfg.output.recal_model:
         wrapper = AdaptedModelWrapper(
             auto_adapter=aa,
             schema=schema,
@@ -862,6 +900,8 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
                 },
                 oracle_results=oracle_result,
                 verdict=verdict,
+                selection=out.get("selection"),
+                estimate=out.get("estimate"),
                 drift_decomp=drift_decomp,
                 feature_attribution=feature_attr,
                 counterfactuals=counterfactuals,

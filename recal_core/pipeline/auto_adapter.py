@@ -152,6 +152,7 @@ class AutoAdapter:
         pair: CohortPair | None = None,
         pca_k: int = 5,
         max_n_sweep: int = 30,
+        consider_identity: bool = True,
     ) -> AdapterConfig:
         """
         Ejecuta el Designer sobre el DriftProfile almacenado.
@@ -182,7 +183,7 @@ class AutoAdapter:
             pca_k=pca_k,
             max_n_sweep=max_n_sweep,
         )
-        if pair is not None:
+        if pair is not None and consider_identity:
             self._consider_identity(pair)
         return self._config
 

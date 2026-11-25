@@ -541,6 +541,42 @@ def _recal_version() -> str:
 _VERDICT_COLOURS = {"GREEN": "#2E7D32", "AMBER": "#EF6C00", "RED": "#C62828", "INDETERMINATE": "#616161"}
 
 
+INTENDED_USE_04 = (
+    "RECAL selects, by cross-validation on a small labelled target cohort, the adaptation of a "
+    "frozen binary classifier (input transformation × recalibration) with the lowest held-out "
+    "log-loss, and estimates by nested cross-validation how the adapted model is expected to "
+    "perform in that target population. It does not decide whether the model should be deployed "
+    "or retrained; that decision belongs to the team responsible for the model. Estimates are "
+    "uncertain with few events and do not replace prospective monitoring."
+)
+
+
+def _render_selection_section(selection: dict, estimate: dict | None) -> str:
+    def f(x, nd=3):
+        return "—" if x is None or (isinstance(x, float) and x != x) else f"{x:.{nd}f}"
+    bold = ' style="font-weight:bold"'
+    rows = "".join(
+        f"<tr{bold if r.get('selected') else ''}><td>{r['transform']}</td>"
+        f"<td>{r['calibration']}</td><td>{f(r['cv_logloss'], 4)}</td><td>{f(r['se'], 4)}</td>"
+        f"<td>{'✔' if r.get('selected') else ''}{' (lowest)' if r.get('best') else ''}</td></tr>"
+        for r in selection.get("table", []))
+    est_html = "<p>Nested estimate not available.</p>"
+    if estimate and estimate.get("available"):
+        e, ci, raw = estimate["estimate"], estimate["ci95"], estimate["raw_on_cohort"]
+        est_html = "<table><tr><th>Metric</th><th>Frozen model (cohort)</th><th>Adapted (nested CV) [95% CI]</th></tr>" + "".join(
+            f"<tr><td>{lab}</td><td>{f(raw[k], nd)}</td><td>{f(e[k], nd)} [{f(ci[k][0], nd)}, {f(ci[k][1], nd)}]</td></tr>"
+            for k, lab, nd in [("auroc", "AUROC (fold mean)", 3), ("brier", "Brier", 4), ("logloss", "Log-loss", 4),
+                               ("slope", "Calibration slope", 2), ("citl", "Calibration intercept", 2),
+                               ("ece10", "ECE (10 equal-frequency bins)", 3)]) + "</table>"
+    return f"""
+<h2>0. Selected adaptation and expected performance in the target population</h2>
+<p><strong>Chosen:</strong> {' + '.join(selection['chosen'])} — {selection.get('reason', '')}</p>
+<table><tr><th>Transformation</th><th>Recalibration</th><th>CV log-loss</th><th>SE</th><th></th></tr>{rows}</table>
+{est_html}
+<div class="severe-box"><strong>Intended use and limitations.</strong> {INTENDED_USE_04}</div>
+"""
+
+
 def _render_verdict_section(verdict: dict | None) -> str:
     """Deploy-or-retrain verdict with its uncertainty, thresholds and intended use."""
     from recal_cli.verdict import INTENDED_USE
@@ -1025,6 +1061,8 @@ def generate_html_report(
     significance_tests: dict | None = None,
     feature_combined_scores: dict | None = None,
     verdict: dict | None = None,
+    selection: dict | None = None,
+    estimate: dict | None = None,
 ) -> str:
     """
     Generate a self-contained HTML report for the RECAL pair.
@@ -1160,7 +1198,7 @@ def generate_html_report(
   RECAL v{_recal_version()}
 </p>
 
-{_render_verdict_section(verdict)}
+{_render_selection_section(selection, estimate) if selection else _render_verdict_section(verdict)}
 
 <div class="summary-box">
   <strong>Executive summary:</strong>
