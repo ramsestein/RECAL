@@ -54,6 +54,7 @@ def holdout_metrics(y: np.ndarray, p: np.ndarray, class_threshold: float) -> dic
     auc, lo, hi = _delong_auroc_ci(y, p)
     slope, citl = calibration_slope_intercept(y, p)
     return {
+        "logloss": float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p))),
         "auroc": auc, "auroc_ci": [lo, hi],
         "auprc": float(average_precision_score(y, p)),
         "brier": float(brier_score_loss(y, p)),

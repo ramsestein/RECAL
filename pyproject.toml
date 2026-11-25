@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "recal"
-version = "0.4.0.dev0"
+version = "0.4.0"
 description = "Recalibration and alignment wrapper for frozen binary predictive models across clinical domains without retraining"
 readme = "README.md"
 license = {text = "MIT"}
