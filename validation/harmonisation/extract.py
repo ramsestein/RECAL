@@ -349,6 +349,99 @@ def events_inspire(con, root: Path) -> None:
     """)
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# eICU-CRD (offsets in minutes from ICU admission; protocol v2.0)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def cohort_eicu(con, root: Path) -> dict:
+    c = SPEC["cohort"]
+    flow = {}
+    con.execute(f"""
+        CREATE OR REPLACE TABLE stays_all AS
+        SELECT p.patientunitstayid AS stay_id, p.patienthealthsystemstayid AS hadm_id,
+               p.uniquepid AS subject_id, p.hospitalid AS hospital_id, h.region,
+               CASE WHEN p.age = '> 89' THEN 90 ELSE TRY_CAST(p.age AS DOUBLE) END AS age,
+               CASE WHEN p.gender = 'Male' THEN 1 WHEN p.gender = 'Female' THEN 0 END AS male,
+               TRY_CAST(p.admissionweight AS DOUBLE) AS weight_adm,
+               TRY_CAST(p.unitvisitnumber AS INTEGER) AS unitvisitnumber,
+               TRY_CAST(p.hospitaldischargeyear AS INTEGER) AS year,
+               TRY_CAST(p.unitdischargeoffset AS DOUBLE) / 60.0 AS los_h,
+               p.unitdischargestatus AS unit_status, p.unittype
+        FROM {_csv(root / 'patient.csv.gz')} p
+        LEFT JOIN {_csv(root / 'hospital.csv.gz')} h ON h.hospitalid = p.hospitalid
+    """)
+    flow["icu_stays_total"] = con.execute("SELECT count(*) FROM stays_all").fetchone()[0]
+    flow["patients_total"] = con.execute("SELECT count(DISTINCT subject_id) FROM stays_all").fetchone()[0]
+    # all eICU unit types are ICUs (Med-Surg, MICU, SICU, CCU-CTICU, Neuro, Cardiac, CSICU, CTICU)
+    flow["adult_icu_unit_stays"] = flow["icu_stays_total"]
+    # first ICU stay per patient: first health-system stay (by discharge year, then id), first unit visit
+    con.execute("""
+        CREATE OR REPLACE TABLE stays AS
+        SELECT * FROM (
+            SELECT *, row_number() OVER (PARTITION BY subject_id
+                     ORDER BY year, TRY_CAST(hadm_id AS BIGINT), unitvisitnumber, TRY_CAST(stay_id AS BIGINT)) AS rn
+            FROM stays_all
+        ) WHERE rn = 1
+    """)
+    flow["first_icu_stay"] = con.execute("SELECT count(*) FROM stays").fetchone()[0]
+    con.execute(f"CREATE OR REPLACE TABLE b1 AS SELECT * FROM stays WHERE age >= {c['min_age']}")
+    flow["age_ge_18"] = con.execute("SELECT count(*) FROM b1").fetchone()[0]
+    con.execute(f"CREATE OR REPLACE TABLE b2 AS SELECT * FROM b1 WHERE los_h >= {c['min_icu_los_hours']}")
+    flow["icu_los_ge_24h"] = con.execute("SELECT count(*) FROM b2").fetchone()[0]
+    # death in the ICU is recorded at unit discharge, so LOS ≥ 24 h implies alive at 24 h
+    flow["alive_at_24h"] = flow["icu_los_ge_24h"]
+    con.execute("""
+        CREATE OR REPLACE TABLE cohort AS
+        SELECT subject_id, hadm_id, stay_id AS key, age, male, CAST(year AS VARCHAR) AS year_group,
+               los_h, weight_adm, hospital_id, region,
+               CASE WHEN unit_status = 'Expired' THEN 1 ELSE 0 END AS icu_death
+        FROM b2 WHERE unit_status IN ('Expired', 'Alive')
+    """)
+    flow["final_cohort"] = con.execute("SELECT count(*) FROM cohort").fetchone()[0]
+    flow["events_icu_death"] = con.execute("SELECT sum(icu_death) FROM cohort").fetchone()[0]
+    return flow
+
+
+def events_eicu(con, root: Path) -> None:
+    w_l = SPEC["windows"]["labs"]
+    wb = SPEC["demographics"]["weight"]["bounds"]
+    vrows = _vital_item_rows("eicu")
+    # wide vital tables → long (prefiltered parquet if available, else the gzip CSV)
+    parts = []
+    for table, rel in (("vitalPeriodic", "vitalPeriodic.csv.gz"), ("vitalAperiodic", "vitalAperiodic.csv.gz")):
+        src = _events(root, rel, "eicu", table)
+        cols = con.execute(f"SELECT * FROM {src} LIMIT 0").description
+        names = {d[0] for d in cols}
+        for item, var, mod, conv in vrows:
+            if item in names:
+                parts.append(f"""SELECT patientunitstayid AS key, '{var}' AS var, '{mod}' AS modality,
+                    TRY_CAST(observationoffset AS DOUBLE) / 60.0 AS t_h, TRY_CAST({item} AS DOUBLE) AS v
+                    FROM {src}""")
+    _log("eicu: vitals")
+    con.execute(f"""
+        CREATE OR REPLACE TABLE vitals_long AS
+        SELECT u.key, u.var, u.modality, u.t_h, u.v FROM ({' UNION ALL '.join(parts)}) u
+        WHERE u.v IS NOT NULL AND u.t_h >= {SPEC['windows']['vitals'][0]} AND u.t_h < {SPEC['windows']['vitals'][1]}
+          AND u.key IN (SELECT key FROM cohort)
+    """)
+    con.execute(f"""
+        CREATE OR REPLACE TABLE weight AS
+        SELECT key, CASE WHEN weight_adm BETWEEN {wb[0]} AND {wb[1]} THEN weight_adm END AS weight FROM cohort
+    """)
+    _log("eicu: labs")
+    con.execute(f"""
+        CREATE OR REPLACE TABLE labs_long AS
+        SELECT l.patientunitstayid AS key, m.var, TRY_CAST(l.labresultoffset AS DOUBLE) / 60.0 AS t_h,
+               TRY_CAST(l.labresult AS DOUBLE) AS v
+        FROM {_csv(root / 'lab.csv.gz')} l
+        JOIN lmap m ON m.item = l.labname
+        WHERE l.patientunitstayid IN (SELECT key FROM cohort)
+          AND TRY_CAST(l.labresult AS DOUBLE) IS NOT NULL
+          AND TRY_CAST(l.labresultoffset AS DOUBLE) >= ({w_l[0]}) * 60
+          AND TRY_CAST(l.labresultoffset AS DOUBLE) < {w_l[1]} * 60
+    """)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Common: bounds, derived MAP, aggregation
 # ─────────────────────────────────────────────────────────────────────────────
@@ -400,10 +493,12 @@ def build_features(con, db: str, out: Path) -> dict:
     con.execute(f"CREATE OR REPLACE TABLE fl AS SELECT key, {', '.join(lab_cols)} FROM labs_long_ok GROUP BY key")
 
     wb = SPEC["demographics"]["weight"]["bounds"]
+    ccols = {r[0] for r in con.execute("DESCRIBE cohort").fetchall()}
+    extra_meta = "".join(f"CAST(k.{c} AS VARCHAR) AS {c}, " for c in ("hospital_id", "region") if c in ccols)
     con.execute(f"""
         CREATE OR REPLACE TABLE features AS
         SELECT '{db}' AS db, CAST(k.key AS VARCHAR) AS key, CAST(k.subject_id AS VARCHAR) AS subject_id,
-               k.year_group, k.los_h, k.icu_death,
+               k.year_group, k.los_h, k.icu_death, {extra_meta}
                CAST(k.age AS DOUBLE) AS age, CAST(k.male AS DOUBLE) AS male,
                CASE WHEN w.weight BETWEEN {wb[0]} AND {wb[1]} THEN w.weight END AS weight,
                fv.* EXCLUDE (key), fl.* EXCLUDE (key)
@@ -422,7 +517,7 @@ def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data-root", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--db", required=True, choices=["mimic", "nwicu", "inspire"])
+    ap.add_argument("--db", required=True, choices=["mimic", "nwicu", "inspire", "eicu"])
     ap.add_argument("--memory-limit", default="2GB")
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--prefiltered", action="store_true",
@@ -441,6 +536,9 @@ def main(argv=None) -> None:
     if args.db == "inspire":
         flow = cohort_inspire(con, root)
         events_inspire(con, root)
+    elif args.db == "eicu":
+        flow = cohort_eicu(con, root)
+        events_eicu(con, root)
     else:
         flow = cohort_mimic_like(con, root, args.db)
         events_mimic_like(con, root, args.db, args.out)

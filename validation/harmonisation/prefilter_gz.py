@@ -38,7 +38,12 @@ TABLE_PATH = {
     ("mimic", "labevents"): "hosp/labevents.csv.gz",
     ("nwicu", "chartevents"): "nw_icu/chartevents.csv.gz",
     ("nwicu", "labevents"): "nw_hosp/labevents.csv.gz",
+    ("eicu", "vitalPeriodic"): "vitalPeriodic.csv.gz",
+    ("eicu", "vitalAperiodic"): "vitalAperiodic.csv.gz",
 }
+# Wide eICU tables have no itemid: rows are kept by offset window instead (vitals window)
+OFFSET_FILTER = {("eicu", "vitalPeriodic"): "observationoffset",
+                 ("eicu", "vitalAperiodic"): "observationoffset"}
 BLOCK = 128 * 1024 * 1024
 
 
@@ -55,8 +60,9 @@ def main(argv=None) -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-root", required=True, type=Path)
     ap.add_argument("--out", required=True, type=Path)
-    ap.add_argument("--db", required=True, choices=["mimic", "nwicu"])
-    ap.add_argument("--table", required=True, choices=["chartevents", "labevents"])
+    ap.add_argument("--db", required=True, choices=["mimic", "nwicu", "eicu"])
+    ap.add_argument("--table", required=True,
+                    choices=["chartevents", "labevents", "vitalPeriodic", "vitalAperiodic"])
     ap.add_argument("--budget-s", type=float, default=150)
     args = ap.parse_args(argv)
 
@@ -69,7 +75,12 @@ def main(argv=None) -> None:
     if state["done"]:
         print("DONE (already complete)", json.dumps(state))
         return
-    keep = pa.array(itemids(args.db, args.table), type=pa.string())
+    off_col = OFFSET_FILTER.get((args.db, args.table))
+    if off_col:
+        w = ex.SPEC["windows"]["vitals"]
+        lo, hi = w[0] * 60, w[1] * 60
+    else:
+        keep = pa.array(itemids(args.db, args.table), type=pa.string())
 
     f = igz.IndexedGzipFile(str(src), spacing=16 * 1024 * 1024)
     if index_f.exists():
@@ -105,7 +116,11 @@ def main(argv=None) -> None:
             convert_options=pacsv.ConvertOptions(column_types={c: pa.string() for c in cols},
                                                  strings_can_be_null=True),
         )
-        sub = tbl.filter(pc.is_in(tbl["itemid"], value_set=keep))
+        if off_col:
+            off = pc.cast(tbl[off_col], pa.float64())
+            sub = tbl.filter(pc.and_(pc.greater_equal(off, lo), pc.less(off, hi)))
+        else:
+            sub = tbl.filter(pc.is_in(tbl["itemid"], value_set=keep))
         if sub.num_rows:
             pq.write_table(sub, work / f"part_{state['part']:05d}.parquet")
             state["part"] += 1
