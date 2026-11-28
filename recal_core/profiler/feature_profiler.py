@@ -102,9 +102,24 @@ def _compute_shap_importance(
         shap_vals = model.shap_values(X_imp)
         return np.abs(shap_vals).mean(axis=0)
     except Exception as e:
+        p = X_source.shape[1]
+        if not hasattr(model, "feature_importance"):
+            # Model-agnostic fallback (e.g. scikit-learn MLP, Keras, PyTorch): mean absolute change
+            # in the predicted probability when one feature is permuted, on <= 500 source rows.
+            logger.warning("shap_values()/feature_importance() not available (%s). "
+                           "Using permutation sensitivity.", e)
+            rng = np.random.default_rng(0)
+            idx = rng.choice(len(X_imp), min(500, len(X_imp)), replace=False)
+            Xs = X_imp[idx]
+            base = np.asarray(model.predict_proba(Xs), float)
+            imp = np.zeros(p)
+            for j in range(p):
+                Xp = Xs.copy()
+                Xp[:, j] = rng.permutation(Xp[:, j])
+                imp[j] = float(np.mean(np.abs(np.asarray(model.predict_proba(Xp), float) - base)))
+            return imp
         logger.warning("shap_values() not available (%s). Using feature_importance().", e)
         fi = model.feature_importance()
-        p = X_source.shape[1]
         shap = np.zeros(p)
         # fi es dict name → value; necesitamos mapear a índices
         # Este fallback es aproximado

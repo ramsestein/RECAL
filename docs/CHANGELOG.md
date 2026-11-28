@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.4.2] — 2026-11-28
+
+### Fixed
+- **Designed transformations with models that expose neither SHAP values nor feature
+  importances** (scikit-learn MLP, Keras, PyTorch, BYOM). The profiler raised an error, so
+  only the identity transformation could be selected for these backends. It now uses a
+  model-agnostic permutation sensitivity (mean absolute change in the predicted probability
+  when one feature is permuted, on ≤ 500 source rows, fixed seed).
+
+### Added
+- `reproduce_paper.py`: regenerates Table 2 and Fig. 3 of the SoftwareX paper (XGBoost and
+  MLP synthetic examples) and records the wall-clock time of each run.
+- `configs/synthetic_mlp.yaml`: CLI configuration for the MLP synthetic example.
+
 ## [0.4.1] — 2026-11-28
 
 Change made AFTER the results of protocol v2.0 (eICU) and of the development-database run
