@@ -27,5 +27,5 @@ Componentes
 
 from recal_core.pipeline.auto_adapter import AutoAdapter
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __all__ = ["AutoAdapter"]

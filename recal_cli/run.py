@@ -832,13 +832,22 @@ def run(cfg: FullConfig, run_cv: bool = True, skip_expensive: bool = False) -> d
             return {"drift_type_dict": r["drift_type_dict"], "shap_dict": r["shap_dict"],
                     "lbase_dict": r["lbase_dict"]}
 
-        res = adapt(pair_filt, model, schema, drift_fn=_drift_for if drift_kwargs else None,
+        # 0.4.1: selection and estimate use ALL target patients. The row filter of ≤ 0.4.0
+        # (patients with ≥ max_missing_rate missing predictors were dropped) made the
+        # estimate refer to an easier subpopulation than the one the adapter is applied to.
+        nan_rate = np.isnan(pair.X_t).mean(axis=1)
+        n_high_missing = int((nan_rate >= cfg.recal_core.max_missing_rate).sum())
+        print(f"  Target patients: {len(pair.y_t)} (all used; {n_high_missing} with ≥"
+              f"{cfg.recal_core.max_missing_rate:.0%} missing predictors)")
+        res = adapt(pair, model, schema, drift_fn=_drift_for if drift_kwargs else None,
                     n_splits=cfg.overfitting_check.n_splits, seed=cfg.overfitting_check.random_state,
                     pca_k=cfg.recal_core.pca_k, max_n_sweep=cfg.recal_core.max_n_sweep)
         selected = res["adapter"]
         est = {k: v for k, v in res["estimate"].items() if k not in ("oof_scores", "fold_ids")}
         out["selection"] = {"chosen": list(res["selection"]["chosen"]), "reason": res["selection"]["reason"],
-                            "table": res["selection"]["table"]}
+                            "table": res["selection"]["table"], "n_target": int(len(pair.y_t)),
+                            "n_events": int(pair.y_t.sum()), "n_high_missing": n_high_missing,
+                            "high_missing_threshold": cfg.recal_core.max_missing_rate}
         out["estimate"] = est
         print(f"  Chosen: {' + '.join(res['selection']['chosen'])}  ({res['selection']['reason']})")
         if est.get("available"):

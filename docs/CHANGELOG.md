@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.4.1] — 2026-11-28
+
+Change made AFTER the results of protocol v2.0 (eICU) and of the development-database run
+were seen; documented as such. The confirmatory eICU evaluation used 0.4.0.
+
+### Fixed
+- **Selection and estimate now use all target patients.** Up to 0.4.0, target patients
+  with ≥ `max_missing_rate` (50 %) missing predictors were removed before the adaptation was
+  chosen and its performance estimated, although the adapter is then applied to every
+  patient. Where such patients are frequent and harder to predict (e.g. NWICU, where many
+  ICU stays have no charted vital signs in the first 24 h), the estimate referred to an
+  easier subpopulation (frozen-model AUROC 0.876 on the filtered cohort vs 0.816 in the
+  population) and the chosen recalibration was fitted on an unrepresentative sample. The
+  report now states the cohort size, events and how many patients have high missingness.
+  The legacy path (`selection: designer`) keeps the filter.
+
 ## [0.4.0] — 2026-11-25
 
 Scope refined after the extended evaluation of 0.3.0 (validation/PREREGISTRATION.md, results

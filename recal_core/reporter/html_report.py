@@ -571,6 +571,8 @@ def _render_selection_section(selection: dict, estimate: dict | None) -> str:
     return f"""
 <h2>0. Selected adaptation and expected performance in the target population</h2>
 <p><strong>Chosen:</strong> {' + '.join(selection['chosen'])} — {selection.get('reason', '')}</p>
+<p class="meta">Target cohort: {selection.get('n_target', '—')} patients, {selection.get('n_events', '—')} events; all are used for
+selection and estimation ({selection.get('n_high_missing', '—')} have ≥ {100 * selection.get('high_missing_threshold', 0.5):.0f} % missing predictors).</p>
 <table><tr><th>Transformation</th><th>Recalibration</th><th>CV log-loss</th><th>SE</th><th></th></tr>{rows}</table>
 {est_html}
 <div class="severe-box"><strong>Intended use and limitations.</strong> {INTENDED_USE_04}</div>
